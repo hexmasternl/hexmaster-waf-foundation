@@ -1,0 +1,18 @@
+{
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "rules": {
+        "no-hardcoded-env-urls": {
+          "level": "warning"
+        },
+        "no-unused-params": {
+          "level": "warning"
+        },
+        "use-recent-api-versions": {
+          "level": "warning"
+        }
+      }
+    }
+  }
+}

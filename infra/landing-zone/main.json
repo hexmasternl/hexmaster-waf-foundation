@@ -1,0 +1,2839 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "4945427182166665087"
+    }
+  },
+  "parameters": {
+    "primaryLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region used for landing-zone metadata and subscription-scope deployments."
+      }
+    },
+    "landingZoneName": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 12,
+      "metadata": {
+        "description": "Short landing-zone identifier used in names, tags, and budget resources."
+      }
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": "dev",
+      "allowedValues": [
+        "dev",
+        "test",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Environment stamp for the landing zone."
+      }
+    },
+    "platformOwner": {
+      "type": "string",
+      "metadata": {
+        "description": "Owning team or platform contact for the shared landing zone."
+      }
+    },
+    "platformCostCenter": {
+      "type": "string",
+      "metadata": {
+        "description": "Cost center, cost code, or internal chargeback reference."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Additional tags merged into the shared governance baseline."
+      }
+    },
+    "diagnosticsWorkspaceResourceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Existing Log Analytics workspace resource ID used for diagnostic settings defaults. Leave empty until observability resources exist."
+      }
+    },
+    "budgetAmount": {
+      "type": "int",
+      "defaultValue": 150,
+      "minValue": 1,
+      "metadata": {
+        "description": "Monthly subscription budget amount in the subscription billing currency."
+      }
+    },
+    "budgetStartDate": {
+      "type": "string",
+      "metadata": {
+        "description": "Budget period start date in ISO 8601 format, for example 2025-01-01T00:00:00Z."
+      }
+    },
+    "budgetContactEmails": {
+      "type": "array",
+      "metadata": {
+        "description": "Email recipients for budget threshold notifications."
+      }
+    },
+    "hubNetworkConfig": {
+      "type": "object",
+      "defaultValue": {
+        "addressPrefixes": [
+          "10.20.0.0/20"
+        ],
+        "futureSpokeSupernet": "10.32.0.0/12",
+        "subnetPrefixes": {
+          "gateway": "10.20.0.0/24",
+          "sharedServices": "10.20.1.0/24",
+          "privateEndpoints": "10.20.2.0/24",
+          "containerAppsInfrastructure": "10.20.4.0/23"
+        },
+        "reservedAddressPrefixes": {
+          "futurePlatformDns": "10.20.3.0/24",
+          "futurePlatformSecurity": "10.20.6.0/23",
+          "futureHubExpansion": "10.20.8.0/21"
+        },
+        "dnsBaseline": {
+          "resolverMode": "AzureProvided",
+          "privateZonePlacement": "Hub",
+          "spokeLinkMode": "LinkToHubPrivateZones",
+          "customDnsServers": []
+        }
+      },
+      "metadata": {
+        "description": "Hub platform network configuration, including address planning and DNS baseline metadata."
+      }
+    },
+    "operatorConnectivityConfig": {
+      "type": "object",
+      "defaultValue": {
+        "vpnGatewaySku": "VpnGw1",
+        "vpnClientAddressPool": "172.20.250.0/24",
+        "entraTenantId": "00000000-0000-0000-0000-000000000000",
+        "entraAudience": "c632b3df-fb67-4d84-bdcf-b95ad541b5c8",
+        "breakGlass": {
+          "primaryClient": "Azure VPN Client",
+          "authenticationMode": "MicrosoftEntraId",
+          "operatorGroupName": "alz-platform-operators",
+          "emergencyAccessGroupName": "alz-platform-break-glass",
+          "allowedTargetSubnets": [
+            "sharedServices",
+            "privateEndpoints",
+            "containerAppsInfrastructure"
+          ],
+          "spokeReachabilityRequirement": "Spokes that require operator access must peer to the hub with allowGatewayTransit and useRemoteGateways enabled."
+        }
+      },
+      "metadata": {
+        "description": "Operator connectivity configuration for the Point-to-Site VPN path."
+      }
+    },
+    "sharedServicesConfig": {
+      "type": "object",
+      "defaultValue": {
+        "registry": {
+          "sku": "Premium",
+          "publicNetworkAccess": "Disabled"
+        },
+        "secretVault": {
+          "sku": "standard",
+          "publicNetworkAccess": "Disabled",
+          "enablePurgeProtection": true
+        },
+        "hostingModel": {
+          "platformResourceGroupPlacement": "DedicatedPlatformResourceGroup",
+          "sharedServicesSubnetPurpose": "HubHostedPlatformServicesOnly",
+          "privateEndpointSubnetPurpose": "PrivateEndpointsAndPrivateDnsOnly",
+          "spokeConsumptionPattern": "UseHubPrivateDnsLinksAndHubPrivateEndpoints"
+        }
+      },
+      "metadata": {
+        "description": "Shared platform service configuration for the hub-hosted central registry and secret store."
+      }
+    },
+    "runnerExecutionConfig": {
+      "type": "object",
+      "defaultValue": {
+        "deployRunnerJob": false,
+        "imageRepository": "github-actions-runner",
+        "imageTag": "latest",
+        "githubApiUrl": "https://api.github.com",
+        "githubUrl": "",
+        "runnerScope": "repo",
+        "owner": "",
+        "repositories": [],
+        "targetWorkflowQueueLength": 1,
+        "minExecutions": 0,
+        "maxExecutions": 5,
+        "pollingInterval": 30,
+        "replicaTimeout": 1800,
+        "replicaRetryLimit": 0,
+        "replicaCompletionCount": 1,
+        "parallelism": 1,
+        "cpu": 2,
+        "memory": "4Gi",
+        "githubPatSecretName": "github-actions-pat",
+        "githubPatSecretUri": "",
+        "registrationTokenApiUrl": "",
+        "environmentNetwork": {
+          "dockerBridgeCidr": "10.255.0.0/16",
+          "platformReservedCidr": "10.254.0.0/16",
+          "platformReservedDnsIP": "10.254.0.10"
+        }
+      },
+      "metadata": {
+        "description": "Runner execution platform configuration for the shared Container Apps environment and GitHub runner job."
+      }
+    },
+    "workloadSpokes": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Optional workload spoke definitions. Each spoke must use non-overlapping prefixes carved from hubNetworkConfig.futureSpokeSupernet and reserve room for workload, private endpoint, and future growth subnets."
+      }
+    }
+  },
+  "variables": {
+    "copy": [
+      {
+        "name": "workloadSpokeDefinitions",
+        "count": "[length(parameters('workloadSpokes'))]",
+        "input": {
+          "name": "[parameters('workloadSpokes')[copyIndex('workloadSpokeDefinitions')].name]",
+          "token": "[toLower(replace(replace(parameters('workloadSpokes')[copyIndex('workloadSpokeDefinitions')].name, ' ', '-'), '_', '-'))]",
+          "resourceGroupName": "[format('rg-{0}-spoke-{1}-{2}', variables('prefix'), toLower(replace(replace(parameters('workloadSpokes')[copyIndex('workloadSpokeDefinitions')].name, ' ', '-'), '_', '-')), variables('locationToken'))]",
+          "vnetName": "[format('vnet-{0}-{1}-{2}', variables('prefix'), toLower(replace(replace(parameters('workloadSpokes')[copyIndex('workloadSpokeDefinitions')].name, ' ', '-'), '_', '-')), variables('locationToken'))]",
+          "addressPrefixes": "[parameters('workloadSpokes')[copyIndex('workloadSpokeDefinitions')].addressPrefixes]",
+          "subnetPrefixes": "[parameters('workloadSpokes')[copyIndex('workloadSpokeDefinitions')].subnetPrefixes]"
+        }
+      },
+      {
+        "name": "deployedWorkloadSpokes",
+        "count": "[length(variables('workloadSpokeDefinitions'))]",
+        "input": {
+          "name": "[variables('workloadSpokeDefinitions')[copyIndex('deployedWorkloadSpokes')].name]",
+          "resourceGroupName": "[variables('workloadSpokeDefinitions')[copyIndex('deployedWorkloadSpokes')].resourceGroupName]",
+          "vnetName": "[variables('workloadSpokeDefinitions')[copyIndex('deployedWorkloadSpokes')].vnetName]",
+          "addressPrefixes": "[variables('workloadSpokeDefinitions')[copyIndex('deployedWorkloadSpokes')].addressPrefixes]",
+          "subnetPrefixes": "[variables('workloadSpokeDefinitions')[copyIndex('deployedWorkloadSpokes')].subnetPrefixes]",
+          "peering": {
+            "hubToSpoke": {
+              "peeringName": "[format('peer-{0}-to-{1}', variables('hubVnetName'), variables('workloadSpokeDefinitions')[copyIndex('deployedWorkloadSpokes')].token)]",
+              "allowGatewayTransit": true,
+              "allowForwardedTraffic": false
+            },
+            "spokeToHub": {
+              "peeringName": "[format('peer-{0}-to-{1}', variables('workloadSpokeDefinitions')[copyIndex('deployedWorkloadSpokes')].vnetName, variables('hubVnetName'))]",
+              "useRemoteGateways": true,
+              "allowForwardedTraffic": false
+            }
+          },
+          "allowedHubDestinations": {
+            "sharedServices": "[parameters('hubNetworkConfig').subnetPrefixes.sharedServices]",
+            "privateEndpoints": "[parameters('hubNetworkConfig').subnetPrefixes.privateEndpoints]"
+          }
+        }
+      }
+    ],
+    "locationToken": "[toLower(replace(parameters('primaryLocation'), ' ', ''))]",
+    "prefix": "[format('{0}-{1}', parameters('landingZoneName'), parameters('environment'))]",
+    "requiredTags": "[union(createObject('alz:landingZone', parameters('landingZoneName'), 'alz:environment', parameters('environment'), 'alz:owner', parameters('platformOwner'), 'alz:costCenter', parameters('platformCostCenter'), 'alz:lifecycle', 'shared-platform', 'alz:managedBy', 'bicep'), parameters('tags'))]",
+    "connectivityResourceGroupName": "[format('rg-{0}-connectivity-{1}', variables('prefix'), variables('locationToken'))]",
+    "platformResourceGroupName": "[format('rg-{0}-platform-{1}', variables('prefix'), variables('locationToken'))]",
+    "hubVnetName": "[format('vnet-{0}-hub-{1}', variables('prefix'), variables('locationToken'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-11-01",
+      "name": "[variables('connectivityResourceGroupName')]",
+      "location": "[parameters('primaryLocation')]",
+      "tags": "[variables('requiredTags')]"
+    },
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-11-01",
+      "name": "[variables('platformResourceGroupName')]",
+      "location": "[parameters('primaryLocation')]",
+      "tags": "[variables('requiredTags')]"
+    },
+    {
+      "copy": {
+        "name": "workloadSpokeResourceGroups",
+        "count": "[length(variables('workloadSpokeDefinitions'))]"
+      },
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-11-01",
+      "name": "[variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName]",
+      "location": "[parameters('primaryLocation')]",
+      "tags": "[union(variables('requiredTags'), createObject('alz:lifecycle', 'workload-spoke', 'alz:networkRole', 'workload-spoke', 'alz:workload', variables('workloadSpokeDefinitions')[copyIndex()].name))]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "governance-baseline",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "primaryLocation": {
+            "value": "[parameters('primaryLocation')]"
+          },
+          "landingZoneName": {
+            "value": "[parameters('landingZoneName')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "platformOwner": {
+            "value": "[parameters('platformOwner')]"
+          },
+          "platformCostCenter": {
+            "value": "[parameters('platformCostCenter')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "diagnosticsWorkspaceResourceId": {
+            "value": "[parameters('diagnosticsWorkspaceResourceId')]"
+          },
+          "budgetAmount": {
+            "value": "[parameters('budgetAmount')]"
+          },
+          "budgetStartDate": {
+            "value": "[parameters('budgetStartDate')]"
+          },
+          "budgetContactEmails": {
+            "value": "[parameters('budgetContactEmails')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "881042038528159978"
+            }
+          },
+          "parameters": {
+            "primaryLocation": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region used for naming conventions and governance metadata."
+              }
+            },
+            "landingZoneName": {
+              "type": "string",
+              "metadata": {
+                "description": "Short landing-zone identifier used in names and tags."
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment stamp for the landing zone."
+              }
+            },
+            "platformOwner": {
+              "type": "string",
+              "metadata": {
+                "description": "Owning team or platform contact."
+              }
+            },
+            "platformCostCenter": {
+              "type": "string",
+              "metadata": {
+                "description": "Cost center, cost code, or internal chargeback reference."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Additional tags merged into the shared governance baseline."
+              }
+            },
+            "diagnosticsWorkspaceResourceId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Existing Log Analytics workspace resource ID used for diagnostics defaults."
+              }
+            },
+            "budgetAmount": {
+              "type": "int",
+              "metadata": {
+                "description": "Monthly subscription budget amount."
+              }
+            },
+            "budgetStartDate": {
+              "type": "string",
+              "metadata": {
+                "description": "Budget period start date in ISO 8601 format."
+              }
+            },
+            "budgetContactEmails": {
+              "type": "array",
+              "metadata": {
+                "description": "Email recipients for budget threshold notifications."
+              }
+            }
+          },
+          "variables": {
+            "locationToken": "[toLower(replace(parameters('primaryLocation'), ' ', ''))]",
+            "landingZoneToken": "[toLower(replace(parameters('landingZoneName'), '-', ''))]",
+            "prefix": "[format('{0}-{1}', parameters('landingZoneName'), parameters('environment'))]",
+            "naming": {
+              "prefix": "[variables('prefix')]",
+              "resourceGroups": {
+                "management": "[format('rg-{0}-management-{1}', variables('prefix'), variables('locationToken'))]",
+                "connectivity": "[format('rg-{0}-connectivity-{1}', variables('prefix'), variables('locationToken'))]",
+                "platform": "[format('rg-{0}-platform-{1}', variables('prefix'), variables('locationToken'))]"
+              },
+              "resources": {
+                "logAnalyticsWorkspace": "[format('log-{0}-{1}', variables('prefix'), variables('locationToken'))]",
+                "hubVirtualNetwork": "[format('vnet-{0}-hub-{1}', variables('prefix'), variables('locationToken'))]",
+                "sharedServicesSubnet": "[format('snet-{0}-shared-services', variables('prefix'))]",
+                "privateEndpointsSubnet": "[format('snet-{0}-private-endpoints', variables('prefix'))]",
+                "runnerInfrastructureSubnet": "[format('snet-{0}-runners', variables('prefix'))]",
+                "vpnGatewayPublicIp": "[format('pip-{0}-vpn-{1}', variables('prefix'), variables('locationToken'))]",
+                "vpnGateway": "[format('vpngw-{0}-{1}', variables('prefix'), variables('locationToken'))]",
+                "containerAppsEnvironment": "[format('cae-{0}-{1}', variables('prefix'), variables('locationToken'))]",
+                "containerRegistry": "[take(format('acr{0}{1}{2}', variables('landingZoneToken'), parameters('environment'), take(variables('locationToken'), 6)), 50)]",
+                "platformKeyVault": "[take(format('kv-{0}-{1}', variables('prefix'), variables('locationToken')), 24)]",
+                "runnerJob": "[format('job-{0}-github', variables('prefix'))]",
+                "runnerExecutionIdentity": "[format('id-{0}-runner-exec', variables('prefix'))]",
+                "runnerRegistryIdentity": "[format('id-{0}-runner-reg', variables('prefix'))]"
+              }
+            },
+            "requiredTags": "[union(createObject('alz:landingZone', parameters('landingZoneName'), 'alz:environment', parameters('environment'), 'alz:owner', parameters('platformOwner'), 'alz:costCenter', parameters('platformCostCenter'), 'alz:lifecycle', 'shared-platform', 'alz:managedBy', 'bicep'), parameters('tags'))]",
+            "diagnosticsDefaults": {
+              "enabled": "[not(empty(parameters('diagnosticsWorkspaceResourceId')))]",
+              "workspaceResourceId": "[parameters('diagnosticsWorkspaceResourceId')]",
+              "destinationType": "Dedicated",
+              "logCategoryGroups": [
+                "allLogs",
+                "audit"
+              ],
+              "metricCategories": [
+                "AllMetrics"
+              ],
+              "retentionInDays": 30,
+              "notes": "Apply this baseline to supported platform resources when their modules are introduced."
+            },
+            "allowedServiceTiers": {
+              "networking": {
+                "topology": "HubAndSpoke",
+                "vpnGatewaySku": "VpnGw1",
+                "pointToSiteOnly": true,
+                "bastionDefault": "NotEnabled",
+                "azureFirewallDefault": "NotEnabled",
+                "natGatewayDefault": "NotEnabled",
+                "virtualWanDefault": "NotEnabled"
+              },
+              "registry": {
+                "service": "Azure Container Registry",
+                "sku": "Premium",
+                "adminUserEnabled": false,
+                "publicNetworkAccess": "Disabled",
+                "privateEndpointConnectivity": "Required",
+                "authenticationAsArm": "Enabled",
+                "premiumJustification": "Private Link requires Premium and is the accepted cost exception for the central shared registry."
+              },
+              "runnerPlatform": {
+                "service": "Azure Container Apps Jobs",
+                "environmentProfile": "Consumption",
+                "minExecutions": 0,
+                "dedicatedWorkloadProfiles": "NotAllowedByDefault",
+                "imageSource": "CentralACR",
+                "ingressExposure": "InternalOnly",
+                "secretSource": "SharedKeyVault"
+              }
+            },
+            "costGuardrails": {
+              "monthlyBudgetAmount": "[parameters('budgetAmount')]",
+              "exceptionApprovalRequiredFor": [
+                "Azure Bastion",
+                "Azure Firewall",
+                "Azure NAT Gateway",
+                "Azure Virtual WAN",
+                "Azure Container Apps dedicated workload profiles"
+              ],
+              "reviewNotes": [
+                "Keep shared platform services in the hub and onboard workload services to spokes later.",
+                "Prefer consumption-based or entry-level SKUs until production workload evidence justifies higher spend.",
+                "Use Azure Container Registry Premium for the single shared registry because Private Link is part of the baseline private connectivity posture.",
+                "Enable diagnostics only after routing to an existing workspace to avoid orphaned ingestion cost."
+              ]
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "subscription-budget",
+              "location": "[deployment().location]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "budgetName": {
+                    "value": "[format('budget-{0}', variables('prefix'))]"
+                  },
+                  "amount": {
+                    "value": "[parameters('budgetAmount')]"
+                  },
+                  "startDate": {
+                    "value": "[parameters('budgetStartDate')]"
+                  },
+                  "contactEmails": {
+                    "value": "[parameters('budgetContactEmails')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "5182548748854623887"
+                    }
+                  },
+                  "parameters": {
+                    "budgetName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Name of the subscription budget resource."
+                      }
+                    },
+                    "amount": {
+                      "type": "int",
+                      "minValue": 1,
+                      "metadata": {
+                        "description": "Monthly budget amount in the subscription billing currency."
+                      }
+                    },
+                    "startDate": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Budget period start date in ISO 8601 format."
+                      }
+                    },
+                    "contactEmails": {
+                      "type": "array",
+                      "metadata": {
+                        "description": "Email recipients for budget notifications."
+                      }
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Consumption/budgets",
+                      "apiVersion": "2024-08-01",
+                      "name": "[parameters('budgetName')]",
+                      "properties": {
+                        "amount": "[parameters('amount')]",
+                        "category": "Cost",
+                        "timeGrain": "Monthly",
+                        "timePeriod": {
+                          "startDate": "[parameters('startDate')]"
+                        },
+                        "notifications": {
+                          "advisoryActual": {
+                            "enabled": true,
+                            "operator": "GreaterThanOrEqualTo",
+                            "threshold": 50,
+                            "thresholdType": "Actual",
+                            "contactEmails": "[parameters('contactEmails')]",
+                            "contactGroups": [],
+                            "contactRoles": [],
+                            "locale": "en-us"
+                          },
+                          "warningActual": {
+                            "enabled": true,
+                            "operator": "GreaterThanOrEqualTo",
+                            "threshold": 80,
+                            "thresholdType": "Actual",
+                            "contactEmails": "[parameters('contactEmails')]",
+                            "contactGroups": [],
+                            "contactRoles": [],
+                            "locale": "en-us"
+                          },
+                          "forecastCritical": {
+                            "enabled": true,
+                            "operator": "GreaterThanOrEqualTo",
+                            "threshold": 100,
+                            "thresholdType": "Forecasted",
+                            "contactEmails": "[parameters('contactEmails')]",
+                            "contactGroups": [],
+                            "contactRoles": [],
+                            "locale": "en-us"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "summary": {
+                      "type": "object",
+                      "value": {
+                        "name": "[parameters('budgetName')]",
+                        "amount": "[parameters('amount')]",
+                        "timeGrain": "Monthly",
+                        "notifications": {
+                          "actual50": 50,
+                          "actual80": 80,
+                          "forecast100": 100
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "requiredTags": {
+              "type": "object",
+              "value": "[variables('requiredTags')]"
+            },
+            "diagnosticsDefaults": {
+              "type": "object",
+              "value": "[variables('diagnosticsDefaults')]"
+            },
+            "allowedServiceTiers": {
+              "type": "object",
+              "value": "[variables('allowedServiceTiers')]"
+            },
+            "baseline": {
+              "type": "object",
+              "value": {
+                "subscriptionScope": {
+                  "subscriptionId": "[subscription().subscriptionId]",
+                  "tenantId": "[subscription().tenantId]",
+                  "deploymentScope": "Subscription",
+                  "managementGroupAlignment": "Attach the subscription to the platform landing-zone management group before onboarding workloads."
+                },
+                "naming": "[variables('naming')]",
+                "tags": "[variables('requiredTags')]",
+                "diagnostics": "[variables('diagnosticsDefaults')]",
+                "allowedServiceTiers": "[variables('allowedServiceTiers')]",
+                "costGuardrails": "[variables('costGuardrails')]",
+                "budget": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'subscription-budget'), '2025-04-01').outputs.summary.value]"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "hub-network-foundation",
+      "resourceGroup": "[variables('connectivityResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('primaryLocation')]"
+          },
+          "tags": {
+            "value": "[variables('requiredTags')]"
+          },
+          "vnetName": {
+            "value": "[variables('hubVnetName')]"
+          },
+          "subnetNames": {
+            "value": {
+              "sharedServices": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.sharedServicesSubnet]",
+              "privateEndpoints": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.privateEndpointsSubnet]",
+              "containerAppsInfrastructure": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.runnerInfrastructureSubnet]"
+            }
+          },
+          "hubNetworkConfig": {
+            "value": "[parameters('hubNetworkConfig')]"
+          },
+          "vpnClientAddressPool": {
+            "value": "[parameters('operatorConnectivityConfig').vpnClientAddressPool]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "6191015223731200631"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the hub network foundation."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags applied to the hub network resources."
+              }
+            },
+            "vnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the hub virtual network."
+              }
+            },
+            "subnetNames": {
+              "type": "object",
+              "metadata": {
+                "description": "Subnet names used for the hub platform network."
+              }
+            },
+            "hubNetworkConfig": {
+              "type": "object",
+              "metadata": {
+                "description": "Hub platform network configuration, including address ranges, subnet prefixes, and DNS baseline metadata."
+              }
+            },
+            "vpnClientAddressPool": {
+              "type": "string",
+              "metadata": {
+                "description": "Address pool assigned to Point-to-Site VPN operators."
+              }
+            }
+          },
+          "variables": {
+            "subnetPrefixes": "[parameters('hubNetworkConfig').subnetPrefixes]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-{0}', parameters('subnetNames').sharedServices)]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowOperatorP2SInbound",
+                    "properties": {
+                      "description": "Allows break-glass operators from the P2S pool to reach hub shared services.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('vpnClientAddressPool')]",
+                      "destinationAddressPrefix": "[variables('subnetPrefixes').sharedServices]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyInternetInbound",
+                    "properties": {
+                      "description": "Keeps shared services private by default.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*",
+                      "access": "Deny",
+                      "priority": 4000,
+                      "direction": "Inbound"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-{0}', parameters('subnetNames').privateEndpoints)]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowOperatorP2SInbound",
+                    "properties": {
+                      "description": "Allows break-glass operators to reach private endpoints for diagnostics.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('vpnClientAddressPool')]",
+                      "destinationAddressPrefix": "[variables('subnetPrefixes').privateEndpoints]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyInternetInbound",
+                    "properties": {
+                      "description": "Prevents direct internet reachability to private endpoints.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*",
+                      "access": "Deny",
+                      "priority": 4000,
+                      "direction": "Inbound"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-{0}', parameters('subnetNames').containerAppsInfrastructure)]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowOperatorP2SControlPlaneInbound",
+                    "properties": {
+                      "description": "Allows break-glass operators to reach internal HTTPS endpoints exposed through the Container Apps environment.",
+                      "protocol": "Tcp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "443",
+                      "sourceAddressPrefix": "[parameters('vpnClientAddressPool')]",
+                      "destinationAddressPrefix": "[variables('subnetPrefixes').containerAppsInfrastructure]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyInternetInbound",
+                    "properties": {
+                      "description": "Keeps the runner subnet private by default.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*",
+                      "access": "Deny",
+                      "priority": 4000,
+                      "direction": "Inbound"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/routeTables",
+              "apiVersion": "2024-05-01",
+              "name": "[format('rt-{0}', parameters('subnetNames').sharedServices)]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "disableBgpRoutePropagation": false,
+                "routes": []
+              }
+            },
+            {
+              "type": "Microsoft.Network/routeTables",
+              "apiVersion": "2024-05-01",
+              "name": "[format('rt-{0}', parameters('subnetNames').privateEndpoints)]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "disableBgpRoutePropagation": false,
+                "routes": []
+              }
+            },
+            {
+              "type": "Microsoft.Network/routeTables",
+              "apiVersion": "2024-05-01",
+              "name": "[format('rt-{0}', parameters('subnetNames').containerAppsInfrastructure)]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "disableBgpRoutePropagation": false,
+                "routes": []
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-05-01",
+              "name": "[parameters('vnetName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": "[parameters('hubNetworkConfig').addressPrefixes]"
+                },
+                "dhcpOptions": {
+                  "dnsServers": "[parameters('hubNetworkConfig').dnsBaseline.customDnsServers]"
+                },
+                "subnets": [
+                  {
+                    "name": "GatewaySubnet",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetPrefixes').gateway]"
+                    }
+                  },
+                  {
+                    "name": "[parameters('subnetNames').sharedServices]",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetPrefixes').sharedServices]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').sharedServices))]"
+                      },
+                      "routeTable": {
+                        "id": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').sharedServices))]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "[parameters('subnetNames').privateEndpoints]",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetPrefixes').privateEndpoints]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').privateEndpoints))]"
+                      },
+                      "routeTable": {
+                        "id": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').privateEndpoints))]"
+                      },
+                      "privateEndpointNetworkPolicies": "Disabled",
+                      "privateLinkServiceNetworkPolicies": "Enabled"
+                    }
+                  },
+                  {
+                    "name": "[parameters('subnetNames').containerAppsInfrastructure]",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetPrefixes').containerAppsInfrastructure]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').containerAppsInfrastructure))]"
+                      },
+                      "routeTable": {
+                        "id": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').containerAppsInfrastructure))]"
+                      },
+                      "delegations": [
+                        {
+                          "name": "acaEnvironmentDelegation",
+                          "properties": {
+                            "serviceName": "Microsoft.App/environments"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').containerAppsInfrastructure))]",
+                "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').containerAppsInfrastructure))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').privateEndpoints))]",
+                "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').privateEndpoints))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').sharedServices))]",
+                "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').sharedServices))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "foundation": {
+              "type": "object",
+              "value": {
+                "vnetName": "[parameters('vnetName')]",
+                "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+                "subnetIds": {
+                  "gateway": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), 'GatewaySubnet')]",
+                  "sharedServices": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').sharedServices)]",
+                  "privateEndpoints": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').privateEndpoints)]",
+                  "containerAppsInfrastructure": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').containerAppsInfrastructure)]"
+                },
+                "routeTables": {
+                  "sharedServices": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').sharedServices))]",
+                  "privateEndpoints": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').privateEndpoints))]",
+                  "containerAppsInfrastructure": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').containerAppsInfrastructure))]"
+                },
+                "networkSecurityGroups": {
+                  "sharedServices": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').sharedServices))]",
+                  "privateEndpoints": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').privateEndpoints))]",
+                  "containerAppsInfrastructure": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').containerAppsInfrastructure))]"
+                },
+                "addressPlan": {
+                  "hubAddressPrefixes": "[parameters('hubNetworkConfig').addressPrefixes]",
+                  "subnetPrefixes": "[variables('subnetPrefixes')]",
+                  "reservedAddressPrefixes": "[parameters('hubNetworkConfig').reservedAddressPrefixes]",
+                  "futureSpokeSupernet": "[parameters('hubNetworkConfig').futureSpokeSupernet]",
+                  "notes": [
+                    "The hub is reserved for platform connectivity, shared services, and runner infrastructure.",
+                    "The Container Apps infrastructure subnet is pre-sized to avoid later subnet replacement.",
+                    "The future spoke supernet is intentionally separate from the hub VNet to keep peering straightforward."
+                  ]
+                },
+                "dnsBaseline": {
+                  "resolverMode": "[parameters('hubNetworkConfig').dnsBaseline.resolverMode]",
+                  "privateZonePlacement": "[parameters('hubNetworkConfig').dnsBaseline.privateZonePlacement]",
+                  "spokeLinkMode": "[parameters('hubNetworkConfig').dnsBaseline.spokeLinkMode]",
+                  "customDnsServers": "[parameters('hubNetworkConfig').dnsBaseline.customDnsServers]",
+                  "notes": [
+                    "Use Azure-provided DNS initially and link hub-hosted private DNS zones to the hub and approved spokes.",
+                    "Keep DNS central in the hub so future spoke onboarding does not require per-spoke resolvers."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('connectivityResourceGroupName'))]",
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline')]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "workloadSpokeModules",
+        "count": "[length(variables('workloadSpokeDefinitions'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('workload-spoke-{0}', copyIndex())]",
+      "resourceGroup": "[variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('primaryLocation')]"
+          },
+          "tags": {
+            "value": "[union(variables('requiredTags'), createObject('alz:lifecycle', 'workload-spoke', 'alz:networkRole', 'workload-spoke', 'alz:workload', variables('workloadSpokeDefinitions')[copyIndex()].name))]"
+          },
+          "spokeName": {
+            "value": "[variables('workloadSpokeDefinitions')[copyIndex()].name]"
+          },
+          "spokeToken": {
+            "value": "[variables('workloadSpokeDefinitions')[copyIndex()].token]"
+          },
+          "vnetName": {
+            "value": "[variables('workloadSpokeDefinitions')[copyIndex()].vnetName]"
+          },
+          "addressPrefixes": {
+            "value": "[variables('workloadSpokeDefinitions')[copyIndex()].addressPrefixes]"
+          },
+          "subnetPrefixes": {
+            "value": "[variables('workloadSpokeDefinitions')[copyIndex()].subnetPrefixes]"
+          },
+          "hubAddressPrefixes": {
+            "value": "[parameters('hubNetworkConfig').addressPrefixes]"
+          },
+          "hubSharedServicesPrefix": {
+            "value": "[parameters('hubNetworkConfig').subnetPrefixes.sharedServices]"
+          },
+          "hubPrivateEndpointsPrefix": {
+            "value": "[parameters('hubNetworkConfig').subnetPrefixes.privateEndpoints]"
+          },
+          "futureSpokeSupernet": {
+            "value": "[parameters('hubNetworkConfig').futureSpokeSupernet]"
+          },
+          "vpnClientAddressPool": {
+            "value": "[parameters('operatorConnectivityConfig').vpnClientAddressPool]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "3003311163235115811"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the workload spoke network."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags applied to the workload spoke resources."
+              }
+            },
+            "spokeName": {
+              "type": "string",
+              "metadata": {
+                "description": "Friendly workload name for the spoke."
+              }
+            },
+            "spokeToken": {
+              "type": "string",
+              "metadata": {
+                "description": "Normalized token used in resource names for the spoke."
+              }
+            },
+            "vnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the workload spoke virtual network."
+              }
+            },
+            "addressPrefixes": {
+              "type": "array",
+              "metadata": {
+                "description": "Address prefixes assigned to the workload spoke VNet."
+              }
+            },
+            "subnetPrefixes": {
+              "type": "object",
+              "metadata": {
+                "description": "Subnet prefixes used inside the workload spoke."
+              }
+            },
+            "hubAddressPrefixes": {
+              "type": "array",
+              "metadata": {
+                "description": "Hub VNet address prefixes used to deny non-approved platform access."
+              }
+            },
+            "hubSharedServicesPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Hub shared-services subnet prefix that workloads are allowed to reach through the hub peering."
+              }
+            },
+            "hubPrivateEndpointsPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Hub private-endpoints subnet prefix that workloads are allowed to reach through the hub peering."
+              }
+            },
+            "futureSpokeSupernet": {
+              "type": "string",
+              "metadata": {
+                "description": "Future spoke supernet reserved by the landing zone for all workload spokes."
+              }
+            },
+            "vpnClientAddressPool": {
+              "type": "string",
+              "metadata": {
+                "description": "Point-to-Site VPN client pool used for break-glass operator reachability."
+              }
+            }
+          },
+          "variables": {
+            "workloadSubnetName": "[take(format('snet-{0}-workload', parameters('spokeToken')), 80)]",
+            "privateEndpointsSubnetName": "[take(format('snet-{0}-private-endpoints', parameters('spokeToken')), 80)]",
+            "workloadSubnetPrefixes": [
+              "[parameters('subnetPrefixes').workload]",
+              "[parameters('subnetPrefixes').privateEndpoints]"
+            ]
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-{0}', variables('workloadSubnetName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowIntraSpokeInbound",
+                    "properties": {
+                      "description": "Allows traffic that stays inside the workload spoke boundary.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefixes": "[parameters('addressPrefixes')]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "AllowOperatorP2SInbound",
+                    "properties": {
+                      "description": "Allows approved break-glass operators to reach the workload subnet through the hub gateway.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('vpnClientAddressPool')]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "access": "Allow",
+                      "priority": 110,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyHubPlatformInbound",
+                    "properties": {
+                      "description": "Prevents hub platform and runner subnets from initiating traffic into the workload subnet.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefixes": "[parameters('hubAddressPrefixes')]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "access": "Deny",
+                      "priority": 3000,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenySpokeSupernetInbound",
+                    "properties": {
+                      "description": "Blocks lateral traffic from other spokes that share the reserved spoke supernet.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('futureSpokeSupernet')]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "access": "Deny",
+                      "priority": 3100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyInternetInbound",
+                    "properties": {
+                      "description": "Keeps the workload subnet private by default.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*",
+                      "access": "Deny",
+                      "priority": 4000,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "AllowIntraSpokeOutbound",
+                    "properties": {
+                      "description": "Allows traffic that stays inside the workload spoke boundary.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "destinationAddressPrefixes": "[variables('workloadSubnetPrefixes')]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Outbound"
+                    }
+                  },
+                  {
+                    "name": "AllowHubSharedServicesOutbound",
+                    "properties": {
+                      "description": "Allows workloads to reach approved shared services hosted in the hub.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "destinationAddressPrefix": "[parameters('hubSharedServicesPrefix')]",
+                      "access": "Allow",
+                      "priority": 200,
+                      "direction": "Outbound"
+                    }
+                  },
+                  {
+                    "name": "AllowHubPrivateEndpointsOutbound",
+                    "properties": {
+                      "description": "Allows workloads to consume hub-hosted private endpoints such as the shared registry path.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "destinationAddressPrefix": "[parameters('hubPrivateEndpointsPrefix')]",
+                      "access": "Allow",
+                      "priority": 210,
+                      "direction": "Outbound"
+                    }
+                  },
+                  {
+                    "name": "DenyHubPlatformOutbound",
+                    "properties": {
+                      "description": "Prevents workloads from reaching non-approved hub subnets over the peering.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "destinationAddressPrefixes": "[parameters('hubAddressPrefixes')]",
+                      "access": "Deny",
+                      "priority": 3000,
+                      "direction": "Outbound"
+                    }
+                  },
+                  {
+                    "name": "DenySpokeSupernetOutbound",
+                    "properties": {
+                      "description": "Blocks lateral traffic from the workload subnet to other spokes.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "destinationAddressPrefix": "[parameters('futureSpokeSupernet')]",
+                      "access": "Deny",
+                      "priority": 3100,
+                      "direction": "Outbound"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-{0}', variables('privateEndpointsSubnetName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowWorkloadInbound",
+                    "properties": {
+                      "description": "Allows workload resources inside the same spoke to consume local private endpoints.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "AllowOperatorP2SInbound",
+                    "properties": {
+                      "description": "Allows approved break-glass operators to reach spoke private endpoints for diagnostics.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('vpnClientAddressPool')]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "access": "Allow",
+                      "priority": 110,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyHubPlatformInbound",
+                    "properties": {
+                      "description": "Prevents hub platform and runner subnets from initiating traffic into the private-endpoints subnet.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefixes": "[parameters('hubAddressPrefixes')]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "access": "Deny",
+                      "priority": 3000,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenySpokeSupernetInbound",
+                    "properties": {
+                      "description": "Blocks lateral traffic from other spokes that share the reserved spoke supernet.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('futureSpokeSupernet')]",
+                      "destinationAddressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "access": "Deny",
+                      "priority": 3100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyInternetInbound",
+                    "properties": {
+                      "description": "Keeps the spoke private-endpoints subnet private by default.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*",
+                      "access": "Deny",
+                      "priority": 4000,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "AllowIntraSpokeOutbound",
+                    "properties": {
+                      "description": "Allows the private-endpoints subnet to return traffic only inside the local spoke boundary.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "destinationAddressPrefixes": "[variables('workloadSubnetPrefixes')]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Outbound"
+                    }
+                  },
+                  {
+                    "name": "DenyHubPlatformOutbound",
+                    "properties": {
+                      "description": "Prevents private endpoints from becoming a pivot into the wider hub platform network.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "destinationAddressPrefixes": "[parameters('hubAddressPrefixes')]",
+                      "access": "Deny",
+                      "priority": 3000,
+                      "direction": "Outbound"
+                    }
+                  },
+                  {
+                    "name": "DenySpokeSupernetOutbound",
+                    "properties": {
+                      "description": "Blocks lateral traffic from the private-endpoints subnet to other spokes.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "destinationAddressPrefix": "[parameters('futureSpokeSupernet')]",
+                      "access": "Deny",
+                      "priority": 3100,
+                      "direction": "Outbound"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/routeTables",
+              "apiVersion": "2024-05-01",
+              "name": "[format('rt-{0}', variables('workloadSubnetName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "disableBgpRoutePropagation": false,
+                "routes": []
+              }
+            },
+            {
+              "type": "Microsoft.Network/routeTables",
+              "apiVersion": "2024-05-01",
+              "name": "[format('rt-{0}', variables('privateEndpointsSubnetName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "disableBgpRoutePropagation": false,
+                "routes": []
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-05-01",
+              "name": "[parameters('vnetName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": "[parameters('addressPrefixes')]"
+                },
+                "subnets": [
+                  {
+                    "name": "[variables('workloadSubnetName')]",
+                    "properties": {
+                      "addressPrefix": "[parameters('subnetPrefixes').workload]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', variables('workloadSubnetName')))]"
+                      },
+                      "routeTable": {
+                        "id": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', variables('workloadSubnetName')))]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "[variables('privateEndpointsSubnetName')]",
+                    "properties": {
+                      "addressPrefix": "[parameters('subnetPrefixes').privateEndpoints]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', variables('privateEndpointsSubnetName')))]"
+                      },
+                      "routeTable": {
+                        "id": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', variables('privateEndpointsSubnetName')))]"
+                      },
+                      "privateEndpointNetworkPolicies": "Disabled",
+                      "privateLinkServiceNetworkPolicies": "Enabled"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', variables('privateEndpointsSubnetName')))]",
+                "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', variables('privateEndpointsSubnetName')))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', variables('workloadSubnetName')))]",
+                "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', variables('workloadSubnetName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "spoke": {
+              "type": "object",
+              "value": {
+                "name": "[parameters('spokeName')]",
+                "resourceGroupName": "[resourceGroup().name]",
+                "vnetName": "[parameters('vnetName')]",
+                "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+                "subnetNames": {
+                  "workload": "[variables('workloadSubnetName')]",
+                  "privateEndpoints": "[variables('privateEndpointsSubnetName')]"
+                },
+                "subnetIds": {
+                  "workload": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), variables('workloadSubnetName'))]",
+                  "privateEndpoints": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), variables('privateEndpointsSubnetName'))]"
+                },
+                "routeTables": {
+                  "workload": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', variables('workloadSubnetName')))]",
+                  "privateEndpoints": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', variables('privateEndpointsSubnetName')))]"
+                },
+                "networkSecurityGroups": {
+                  "workload": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', variables('workloadSubnetName')))]",
+                  "privateEndpoints": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', variables('privateEndpointsSubnetName')))]"
+                },
+                "addressPlan": {
+                  "vnetPrefixes": "[parameters('addressPrefixes')]",
+                  "subnetPrefixes": "[parameters('subnetPrefixes')]",
+                  "constraints": [
+                    "[format('Allocate workload spoke prefixes from the reserved future spoke supernet {0}.', parameters('futureSpokeSupernet'))]",
+                    "[format('Do not overlap workload spokes with hub prefixes {0} or with other spokes.', join(parameters('hubAddressPrefixes'), ', '))]",
+                    "[format('Reserve the declared future prefix {0} for later in-spoke growth so workloads do not need renumbering.', parameters('subnetPrefixes').reservedFuture)]"
+                  ]
+                },
+                "trafficModel": {
+                  "allowedInbound": [
+                    "[format('Break-glass operators from {0} may reach workload and private-endpoint subnets.', parameters('vpnClientAddressPool'))]",
+                    "Traffic that stays inside the local spoke address space remains allowed."
+                  ],
+                  "allowedOutbound": [
+                    "[format('Workloads can reach the hub shared-services subnet {0}.', parameters('hubSharedServicesPrefix'))]",
+                    "[format('Workloads can reach the hub private-endpoints subnet {0}.', parameters('hubPrivateEndpointsPrefix'))]",
+                    "Private-endpoint resources return traffic only inside the same spoke."
+                  ],
+                  "blockedByDefault": [
+                    "Hub platform subnets other than approved shared-services and private-endpoints prefixes are denied.",
+                    "[format('Spoke-to-spoke traffic across the reserved supernet {0} is denied at the subnet boundary.', parameters('futureSpokeSupernet'))]",
+                    "Internet-originated inbound traffic remains denied by default."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName)]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName)]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "hubToSpokePeeringModules",
+        "count": "[length(variables('workloadSpokeDefinitions'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('hub-to-spoke-peering-{0}', copyIndex())]",
+      "resourceGroup": "[variables('connectivityResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "localVnetName": {
+            "value": "[variables('hubVnetName')]"
+          },
+          "peeringName": {
+            "value": "[format('peer-{0}-to-{1}', variables('hubVnetName'), variables('workloadSpokeDefinitions')[copyIndex()].token)]"
+          },
+          "remoteVnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName), 'Microsoft.Resources/deployments', format('workload-spoke-{0}', copyIndex())), '2025-04-01').outputs.spoke.value.vnetId]"
+          },
+          "allowVirtualNetworkAccess": {
+            "value": true
+          },
+          "allowForwardedTraffic": {
+            "value": false
+          },
+          "allowGatewayTransit": {
+            "value": true
+          },
+          "useRemoteGateways": {
+            "value": false
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "13130458449480993207"
+            }
+          },
+          "parameters": {
+            "localVnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the local VNet where the peering is created."
+              }
+            },
+            "peeringName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the peering resource on the local VNet."
+              }
+            },
+            "remoteVnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Remote VNet resource ID."
+              }
+            },
+            "allowVirtualNetworkAccess": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Whether virtual network access is enabled across the peering."
+              }
+            },
+            "allowForwardedTraffic": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Whether forwarded traffic is allowed across the peering."
+              }
+            },
+            "allowGatewayTransit": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Whether the local VNet shares its gateway with the remote VNet."
+              }
+            },
+            "useRemoteGateways": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Whether the local VNet uses the remote gateway."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('localVnetName'), parameters('peeringName'))]",
+              "properties": {
+                "allowVirtualNetworkAccess": "[parameters('allowVirtualNetworkAccess')]",
+                "allowForwardedTraffic": "[parameters('allowForwardedTraffic')]",
+                "allowGatewayTransit": "[parameters('allowGatewayTransit')]",
+                "useRemoteGateways": "[parameters('useRemoteGateways')]",
+                "remoteVirtualNetwork": {
+                  "id": "[parameters('remoteVnetId')]"
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "peering": {
+              "type": "object",
+              "value": {
+                "name": "[parameters('peeringName')]",
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/virtualNetworkPeerings', parameters('localVnetName'), parameters('peeringName'))]",
+                "localVnetName": "[parameters('localVnetName')]",
+                "remoteVnetId": "[parameters('remoteVnetId')]",
+                "allowVirtualNetworkAccess": "[parameters('allowVirtualNetworkAccess')]",
+                "allowForwardedTraffic": "[parameters('allowForwardedTraffic')]",
+                "allowGatewayTransit": "[parameters('allowGatewayTransit')]",
+                "useRemoteGateways": "[parameters('useRemoteGateways')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('connectivityResourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName), 'Microsoft.Resources/deployments', format('workload-spoke-{0}', copyIndex()))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName), 'Microsoft.Resources/deployments', format('workload-spoke-{0}', copyIndex()))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "spokeToHubPeeringModules",
+        "count": "[length(variables('workloadSpokeDefinitions'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('spoke-to-hub-peering-{0}', copyIndex())]",
+      "resourceGroup": "[variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "localVnetName": {
+            "value": "[variables('workloadSpokeDefinitions')[copyIndex()].vnetName]"
+          },
+          "peeringName": {
+            "value": "[format('peer-{0}-to-{1}', variables('workloadSpokeDefinitions')[copyIndex()].vnetName, variables('hubVnetName'))]"
+          },
+          "remoteVnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.vnetId]"
+          },
+          "allowVirtualNetworkAccess": {
+            "value": true
+          },
+          "allowForwardedTraffic": {
+            "value": false
+          },
+          "allowGatewayTransit": {
+            "value": false
+          },
+          "useRemoteGateways": {
+            "value": true
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "13130458449480993207"
+            }
+          },
+          "parameters": {
+            "localVnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the local VNet where the peering is created."
+              }
+            },
+            "peeringName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the peering resource on the local VNet."
+              }
+            },
+            "remoteVnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Remote VNet resource ID."
+              }
+            },
+            "allowVirtualNetworkAccess": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Whether virtual network access is enabled across the peering."
+              }
+            },
+            "allowForwardedTraffic": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Whether forwarded traffic is allowed across the peering."
+              }
+            },
+            "allowGatewayTransit": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Whether the local VNet shares its gateway with the remote VNet."
+              }
+            },
+            "useRemoteGateways": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Whether the local VNet uses the remote gateway."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', parameters('localVnetName'), parameters('peeringName'))]",
+              "properties": {
+                "allowVirtualNetworkAccess": "[parameters('allowVirtualNetworkAccess')]",
+                "allowForwardedTraffic": "[parameters('allowForwardedTraffic')]",
+                "allowGatewayTransit": "[parameters('allowGatewayTransit')]",
+                "useRemoteGateways": "[parameters('useRemoteGateways')]",
+                "remoteVirtualNetwork": {
+                  "id": "[parameters('remoteVnetId')]"
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "peering": {
+              "type": "object",
+              "value": {
+                "name": "[parameters('peeringName')]",
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/virtualNetworkPeerings', parameters('localVnetName'), parameters('peeringName'))]",
+                "localVnetName": "[parameters('localVnetName')]",
+                "remoteVnetId": "[parameters('remoteVnetId')]",
+                "allowVirtualNetworkAccess": "[parameters('allowVirtualNetworkAccess')]",
+                "allowForwardedTraffic": "[parameters('allowForwardedTraffic')]",
+                "allowGatewayTransit": "[parameters('allowGatewayTransit')]",
+                "useRemoteGateways": "[parameters('useRemoteGateways')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName), 'Microsoft.Resources/deployments', format('workload-spoke-{0}', copyIndex()))]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('workloadSpokeDefinitions')[copyIndex()].resourceGroupName)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "operator-connectivity",
+      "resourceGroup": "[variables('connectivityResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('primaryLocation')]"
+          },
+          "tags": {
+            "value": "[variables('requiredTags')]"
+          },
+          "gatewayPublicIpName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.vpnGatewayPublicIp]"
+          },
+          "virtualNetworkGatewayName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.vpnGateway]"
+          },
+          "gatewaySubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.subnetIds.gateway]"
+          },
+          "vpnGatewaySku": {
+            "value": "[parameters('operatorConnectivityConfig').vpnGatewaySku]"
+          },
+          "vpnClientAddressPool": {
+            "value": "[parameters('operatorConnectivityConfig').vpnClientAddressPool]"
+          },
+          "entraTenantId": {
+            "value": "[parameters('operatorConnectivityConfig').entraTenantId]"
+          },
+          "entraAudience": {
+            "value": "[parameters('operatorConnectivityConfig').entraAudience]"
+          },
+          "breakGlass": {
+            "value": "[parameters('operatorConnectivityConfig').breakGlass]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "11851793154914668291"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the operator connectivity resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags applied to operator connectivity resources."
+              }
+            },
+            "gatewayPublicIpName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the public IP used by the VPN gateway."
+              }
+            },
+            "virtualNetworkGatewayName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Point-to-Site virtual network gateway."
+              }
+            },
+            "gatewaySubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Gateway subnet resource ID from the hub VNet."
+              }
+            },
+            "vpnGatewaySku": {
+              "type": "string",
+              "defaultValue": "VpnGw1",
+              "metadata": {
+                "description": "Low-cost VPN gateway SKU for Point-to-Site access."
+              }
+            },
+            "vpnClientAddressPool": {
+              "type": "string",
+              "metadata": {
+                "description": "Address pool assigned to Point-to-Site VPN clients."
+              }
+            },
+            "entraTenantId": {
+              "type": "string",
+              "metadata": {
+                "description": "Microsoft Entra tenant ID used for Point-to-Site VPN authentication."
+              }
+            },
+            "entraAudience": {
+              "type": "string",
+              "defaultValue": "c632b3df-fb67-4d84-bdcf-b95ad541b5c8",
+              "metadata": {
+                "description": "Microsoft-registered Azure VPN Client audience ID."
+              }
+            },
+            "breakGlass": {
+              "type": "object",
+              "metadata": {
+                "description": "Break-glass operating model metadata emitted as deployment outputs."
+              }
+            }
+          },
+          "variables": {
+            "entraTenantUri": "[format('https://login.microsoftonline.com/{0}', parameters('entraTenantId'))]",
+            "entraIssuerUri": "[format('https://sts.windows.net/{0}/', parameters('entraTenantId'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2024-05-01",
+              "name": "[parameters('gatewayPublicIpName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static"
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworkGateways",
+              "apiVersion": "2024-05-01",
+              "name": "[parameters('virtualNetworkGatewayName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "activeActive": false,
+                "enableBgp": false,
+                "gatewayType": "Vpn",
+                "vpnType": "RouteBased",
+                "sku": {
+                  "name": "[parameters('vpnGatewaySku')]",
+                  "tier": "[parameters('vpnGatewaySku')]"
+                },
+                "ipConfigurations": [
+                  {
+                    "name": "default",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('gatewayPublicIpName'))]"
+                      },
+                      "subnet": {
+                        "id": "[parameters('gatewaySubnetId')]"
+                      }
+                    }
+                  }
+                ],
+                "vpnClientConfiguration": {
+                  "aadTenant": "[variables('entraTenantUri')]",
+                  "aadAudience": "[parameters('entraAudience')]",
+                  "aadIssuer": "[variables('entraIssuerUri')]",
+                  "vpnAuthenticationTypes": [
+                    "AAD"
+                  ],
+                  "vpnClientAddressPool": {
+                    "addressPrefixes": [
+                      "[parameters('vpnClientAddressPool')]"
+                    ]
+                  },
+                  "vpnClientProtocols": [
+                    "OpenVPN"
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', parameters('gatewayPublicIpName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "connectivity": {
+              "type": "object",
+              "value": {
+                "publicIpResourceId": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('gatewayPublicIpName'))]",
+                "virtualNetworkGatewayId": "[resourceId('Microsoft.Network/virtualNetworkGateways', parameters('virtualNetworkGatewayName'))]",
+                "pointToSite": {
+                  "authentication": "Microsoft Entra ID",
+                  "client": "[parameters('breakGlass').primaryClient]",
+                  "protocols": [
+                    "OpenVPN"
+                  ],
+                  "gatewaySku": "[parameters('vpnGatewaySku')]",
+                  "clientAddressPool": "[parameters('vpnClientAddressPool')]",
+                  "tenant": "[variables('entraTenantUri')]",
+                  "audience": "[parameters('entraAudience')]",
+                  "issuer": "[variables('entraIssuerUri')]",
+                  "reachabilityNotes": [
+                    "P2S VPN is the primary low-cost operator access path into the platform hub.",
+                    "Operators connect with Azure VPN Client and receive an address from the dedicated VPN client pool.",
+                    "Spokes that need break-glass access must consume the hub gateway through VNet peering with gateway transit enabled."
+                  ]
+                },
+                "breakGlass": {
+                  "primaryClient": "[parameters('breakGlass').primaryClient]",
+                  "authenticationMode": "[parameters('breakGlass').authenticationMode]",
+                  "operatorGroupName": "[parameters('breakGlass').operatorGroupName]",
+                  "emergencyAccessGroupName": "[parameters('breakGlass').emergencyAccessGroupName]",
+                  "allowedTargetSubnets": "[parameters('breakGlass').allowedTargetSubnets]",
+                  "spokeReachabilityRequirement": "[parameters('breakGlass').spokeReachabilityRequirement]",
+                  "operatingModel": [
+                    "Use just-in-time group membership for day-to-day operators and keep emergency accounts separate from routine administration.",
+                    "Test VPN profile download and emergency access at least quarterly.",
+                    "Limit the break-glass path to hub platform resources and approved spokes; keep workloads outside the hub."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('connectivityResourceGroupName'))]",
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "shared-platform-services",
+      "resourceGroup": "[variables('platformResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('primaryLocation')]"
+          },
+          "tags": {
+            "value": "[variables('requiredTags')]"
+          },
+          "hubVirtualNetworkId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.vnetId]"
+          },
+          "privateEndpointSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.subnetIds.privateEndpoints]"
+          },
+          "containerRegistryName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.containerRegistry]"
+          },
+          "keyVaultName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.platformKeyVault]"
+          },
+          "sharedServicesConfig": {
+            "value": "[parameters('sharedServicesConfig')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "3214137509041544570"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for shared platform services."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags applied to shared platform services."
+              }
+            },
+            "hubVirtualNetworkId": {
+              "type": "string",
+              "metadata": {
+                "description": "Hub VNet resource ID linked to private DNS zones."
+              }
+            },
+            "privateEndpointSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Subnet resource ID used for private endpoints."
+              }
+            },
+            "containerRegistryName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the central Azure Container Registry."
+              }
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the shared platform Key Vault that stores runner secrets and future platform secrets."
+              }
+            },
+            "sharedServicesConfig": {
+              "type": "object",
+              "defaultValue": {
+                "registry": {
+                  "sku": "Premium",
+                  "publicNetworkAccess": "Disabled"
+                },
+                "secretVault": {
+                  "sku": "standard",
+                  "publicNetworkAccess": "Disabled",
+                  "enablePurgeProtection": true
+                },
+                "hostingModel": {
+                  "platformResourceGroupPlacement": "DedicatedPlatformResourceGroup",
+                  "sharedServicesSubnetPurpose": "HubHostedPlatformServicesOnly",
+                  "privateEndpointSubnetPurpose": "PrivateEndpointsAndPrivateDnsOnly",
+                  "spokeConsumptionPattern": "UseHubPrivateDnsLinksAndHubPrivateEndpoints"
+                }
+              },
+              "metadata": {
+                "description": "Shared-service hosting configuration for central registry and secret storage."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2025-04-01",
+              "name": "[parameters('containerRegistryName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('sharedServicesConfig').registry.sku]"
+              },
+              "properties": {
+                "adminUserEnabled": false,
+                "publicNetworkAccess": "[parameters('sharedServicesConfig').registry.publicNetworkAccess]",
+                "networkRuleBypassOptions": "AzureServices"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2024-11-01",
+              "name": "[parameters('keyVaultName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "tenantId": "[subscription().tenantId]",
+                "sku": {
+                  "family": "A",
+                  "name": "[if(equals(parameters('sharedServicesConfig').secretVault.sku, 'premium'), 'premium', 'standard')]"
+                },
+                "enableRbacAuthorization": true,
+                "enablePurgeProtection": "[parameters('sharedServicesConfig').secretVault.enablePurgeProtection]",
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": false,
+                "publicNetworkAccess": "[parameters('sharedServicesConfig').secretVault.publicNetworkAccess]",
+                "softDeleteRetentionInDays": 90,
+                "networkAcls": {
+                  "bypass": "AzureServices",
+                  "defaultAction": "Deny",
+                  "ipRules": [],
+                  "virtualNetworkRules": []
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.azurecr.io",
+              "location": "global",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.azurecr.io', 'hub-link')]",
+              "location": "global",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('hubVirtualNetworkId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.vaultcore.azure.net",
+              "location": "global",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.vaultcore.azure.net', 'hub-link')]",
+              "location": "global",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[parameters('hubVirtualNetworkId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-05-01",
+              "name": "[format('pep-{0}', parameters('containerRegistryName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "acr-registry",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]",
+                      "groupIds": [
+                        "registry"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('pep-{0}', parameters('containerRegistryName')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "acr-registry",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]",
+                "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}', parameters('containerRegistryName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-05-01",
+              "name": "[format('pep-{0}', parameters('keyVaultName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('privateEndpointSubnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "vault",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                      "groupIds": [
+                        "vault"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('pep-{0}', parameters('keyVaultName')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "vault",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]",
+                "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}', parameters('keyVaultName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "sharedServices": {
+              "type": "object",
+              "value": {
+                "resourceGroupScope": "[resourceGroup().name]",
+                "hostingModel": {
+                  "platformResourceGroupPlacement": "[parameters('sharedServicesConfig').hostingModel.platformResourceGroupPlacement]",
+                  "sharedServicesSubnetPurpose": "[parameters('sharedServicesConfig').hostingModel.sharedServicesSubnetPurpose]",
+                  "privateEndpointSubnetPurpose": "[parameters('sharedServicesConfig').hostingModel.privateEndpointSubnetPurpose]",
+                  "spokeConsumptionPattern": "[parameters('sharedServicesConfig').hostingModel.spokeConsumptionPattern]",
+                  "assumptions": [
+                    "Hub-hosted shared services stay in the platform resource group and are consumed from spokes through private endpoints and hub-linked private DNS zones.",
+                    "Future shared platform services that need private consumption should reuse the shared services resource group and the private endpoints subnet instead of introducing workload resources into the hub."
+                  ]
+                },
+                "containerRegistry": {
+                  "name": "[parameters('containerRegistryName')]",
+                  "id": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]",
+                  "loginServer": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').loginServer]",
+                  "sku": "[parameters('sharedServicesConfig').registry.sku]",
+                  "publicNetworkAccess": "[parameters('sharedServicesConfig').registry.publicNetworkAccess]",
+                  "privateEndpointId": "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}', parameters('containerRegistryName')))]",
+                  "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]",
+                  "imageConsumptionPattern": [
+                    "Runner jobs pull images from the central registry with a dedicated managed identity.",
+                    "Future workload spokes consume shared images over the hub-linked privatelink.azurecr.io zone.",
+                    "Enable ACR ARM-audience authentication before first runner image pull so Container Apps managed identities can authenticate without admin credentials."
+                  ]
+                },
+                "secretVault": {
+                  "name": "[parameters('keyVaultName')]",
+                  "id": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+                  "vaultUri": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-11-01').vaultUri]",
+                  "publicNetworkAccess": "[parameters('sharedServicesConfig').secretVault.publicNetworkAccess]",
+                  "privateEndpointId": "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}', parameters('keyVaultName')))]",
+                  "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]",
+                  "secretHandlingNotes": [
+                    "Store GitHub personal access tokens or equivalent bootstrap secrets in Key Vault rather than as deployment-time plain text parameters.",
+                    "Grant the runner execution identity least-privilege Key Vault secret access and keep operator access on separate RBAC assignments."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('platformResourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "runner-execution-platform",
+      "resourceGroup": "[variables('platformResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('primaryLocation')]"
+          },
+          "tags": {
+            "value": "[variables('requiredTags')]"
+          },
+          "containerAppsEnvironmentName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.containerAppsEnvironment]"
+          },
+          "runnerJobName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.runnerJob]"
+          },
+          "runnerExecutionIdentityName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.runnerExecutionIdentity]"
+          },
+          "runnerRegistryIdentityName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.runnerRegistryIdentity]"
+          },
+          "containerRegistryName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.containerRegistry]"
+          },
+          "keyVaultName": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value.naming.resources.platformKeyVault]"
+          },
+          "infrastructureSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.subnetIds.containerAppsInfrastructure]"
+          },
+          "runnerExecutionConfig": {
+            "value": "[parameters('runnerExecutionConfig')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "4020157003737991879"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the runner execution platform."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags applied to runner platform resources."
+              }
+            },
+            "containerAppsEnvironmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Container Apps managed environment hosting runner jobs."
+              }
+            },
+            "runnerJobName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the GitHub Actions runner job definition."
+              }
+            },
+            "runnerExecutionIdentityName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the runner execution identity used inside the job."
+              }
+            },
+            "runnerRegistryIdentityName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the runner registry identity used for ACR pulls."
+              }
+            },
+            "containerRegistryName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the central Azure Container Registry in this resource group."
+              }
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the shared platform Key Vault in this resource group."
+              }
+            },
+            "infrastructureSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Subnet resource ID delegated to the Container Apps environment."
+              }
+            },
+            "runnerExecutionConfig": {
+              "type": "object",
+              "defaultValue": {
+                "deployRunnerJob": false,
+                "imageRepository": "github-actions-runner",
+                "imageTag": "latest",
+                "githubApiUrl": "https://api.github.com",
+                "githubUrl": "",
+                "runnerScope": "repo",
+                "owner": "",
+                "repositories": [],
+                "targetWorkflowQueueLength": 1,
+                "minExecutions": 0,
+                "maxExecutions": 5,
+                "pollingInterval": 30,
+                "replicaTimeout": 1800,
+                "replicaRetryLimit": 0,
+                "replicaCompletionCount": 1,
+                "parallelism": 1,
+                "cpu": 2,
+                "memory": "4Gi",
+                "githubPatSecretName": "github-actions-pat",
+                "githubPatSecretUri": "",
+                "registrationTokenApiUrl": "",
+                "environmentNetwork": {
+                  "dockerBridgeCidr": "10.255.0.0/16",
+                  "platformReservedCidr": "10.254.0.0/16",
+                  "platformReservedDnsIP": "10.254.0.10"
+                }
+              },
+              "metadata": {
+                "description": "Runner execution configuration for the Container Apps environment and GitHub runner job."
+              }
+            }
+          },
+          "variables": {
+            "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+            "keyVaultSecretsUserRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
+            "deployRunnerJob": "[and(and(and(parameters('runnerExecutionConfig').deployRunnerJob, not(empty(parameters('runnerExecutionConfig').githubUrl))), not(empty(parameters('runnerExecutionConfig').registrationTokenApiUrl))), not(empty(parameters('runnerExecutionConfig').githubPatSecretUri)))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2024-11-30",
+              "name": "[parameters('runnerRegistryIdentityName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2024-11-30",
+              "name": "[parameters('runnerExecutionIdentityName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2025-01-01",
+              "name": "[parameters('containerAppsEnvironmentName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "publicNetworkAccess": "Disabled",
+                "appLogsConfiguration": {
+                  "destination": "none"
+                },
+                "vnetConfiguration": {
+                  "infrastructureSubnetId": "[parameters('infrastructureSubnetId')]",
+                  "internal": true,
+                  "dockerBridgeCidr": "[parameters('runnerExecutionConfig').environmentNetwork.dockerBridgeCidr]",
+                  "platformReservedCidr": "[parameters('runnerExecutionConfig').environmentNetwork.platformReservedCidr]",
+                  "platformReservedDnsIP": "[parameters('runnerExecutionConfig').environmentNetwork.platformReservedDnsIP]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.ContainerRegistry/registries/{0}', parameters('containerRegistryName'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName')), 'runner-acr-pull')]",
+              "properties": {
+                "roleDefinitionId": "[variables('acrPullRoleDefinitionId')]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName')), '2024-11-30').principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName')), 'runner-key-vault-secrets-user')]",
+              "properties": {
+                "roleDefinitionId": "[variables('keyVaultSecretsUserRoleDefinitionId')]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName')), '2024-11-30').principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName'))]"
+              ]
+            },
+            {
+              "condition": "[variables('deployRunnerJob')]",
+              "type": "Microsoft.App/jobs",
+              "apiVersion": "2025-01-01",
+              "name": "[parameters('runnerJobName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName')))]": {},
+                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName')))]": {}
+                }
+              },
+              "properties": {
+                "environmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppsEnvironmentName'))]",
+                "configuration": {
+                  "triggerType": "Event",
+                  "replicaTimeout": "[parameters('runnerExecutionConfig').replicaTimeout]",
+                  "replicaRetryLimit": "[parameters('runnerExecutionConfig').replicaRetryLimit]",
+                  "registries": [
+                    {
+                      "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').loginServer]",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName'))]"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "[parameters('runnerExecutionConfig').githubPatSecretName]",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName'))]",
+                      "keyVaultUrl": "[parameters('runnerExecutionConfig').githubPatSecretUri]"
+                    }
+                  ],
+                  "eventTriggerConfig": {
+                    "parallelism": "[parameters('runnerExecutionConfig').parallelism]",
+                    "replicaCompletionCount": "[parameters('runnerExecutionConfig').replicaCompletionCount]",
+                    "scale": {
+                      "minExecutions": "[parameters('runnerExecutionConfig').minExecutions]",
+                      "maxExecutions": "[parameters('runnerExecutionConfig').maxExecutions]",
+                      "pollingInterval": "[parameters('runnerExecutionConfig').pollingInterval]",
+                      "rules": [
+                        {
+                          "name": "github-runner",
+                          "type": "github-runner",
+                          "metadata": {
+                            "githubAPIURL": "[parameters('runnerExecutionConfig').githubApiUrl]",
+                            "owner": "[parameters('runnerExecutionConfig').owner]",
+                            "runnerScope": "[parameters('runnerExecutionConfig').runnerScope]",
+                            "repos": "[join(parameters('runnerExecutionConfig').repositories, ',')]",
+                            "targetWorkflowQueueLength": "[string(parameters('runnerExecutionConfig').targetWorkflowQueueLength)]"
+                          },
+                          "auth": [
+                            {
+                              "secretRef": "[parameters('runnerExecutionConfig').githubPatSecretName]",
+                              "triggerParameter": "personalAccessToken"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "github-runner",
+                      "image": "[format('{0}/{1}:{2}', reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').loginServer, parameters('runnerExecutionConfig').imageRepository, parameters('runnerExecutionConfig').imageTag)]",
+                      "env": [
+                        {
+                          "name": "GITHUB_PAT",
+                          "secretRef": "[parameters('runnerExecutionConfig').githubPatSecretName]"
+                        },
+                        {
+                          "name": "GH_URL",
+                          "value": "[parameters('runnerExecutionConfig').githubUrl]"
+                        },
+                        {
+                          "name": "REGISTRATION_TOKEN_API_URL",
+                          "value": "[parameters('runnerExecutionConfig').registrationTokenApiUrl]"
+                        }
+                      ],
+                      "resources": {
+                        "cpu": "[parameters('runnerExecutionConfig').cpu]",
+                        "memory": "[parameters('runnerExecutionConfig').memory]"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppsEnvironmentName'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "runnerPlatform": {
+              "type": "object",
+              "value": {
+                "environment": {
+                  "name": "[parameters('containerAppsEnvironmentName')]",
+                  "id": "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppsEnvironmentName'))]",
+                  "subnetId": "[parameters('infrastructureSubnetId')]",
+                  "publicNetworkAccess": "Disabled",
+                  "boundaryNotes": [
+                    "The Container Apps environment is the runner execution boundary and is isolated from shared services by subnet separation.",
+                    "The environment is internal-only and uses the dedicated hub runner subnet rather than sharing workload spokes or operator connectivity resources."
+                  ]
+                },
+                "identities": {
+                  "registryPull": {
+                    "name": "[parameters('runnerRegistryIdentityName')]",
+                    "resourceId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName'))]",
+                    "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName')), '2024-11-30').principalId]",
+                    "roleAssignments": [
+                      "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerRegistryIdentityName')), 'runner-acr-pull'))]"
+                    ]
+                  },
+                  "execution": {
+                    "name": "[parameters('runnerExecutionIdentityName')]",
+                    "resourceId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName'))]",
+                    "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName')), '2024-11-30').principalId]",
+                    "roleAssignments": [
+                      "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName')), 'runner-key-vault-secrets-user'))]"
+                    ],
+                    "workloadAccessModel": "Assign Azure RBAC for deployment targets to this identity outside the shared platform baseline."
+                  }
+                },
+                "job": {
+                  "name": "[parameters('runnerJobName')]",
+                  "deploymentEnabled": "[variables('deployRunnerJob')]",
+                  "triggerType": "Event",
+                  "image": "[format('{0}/{1}:{2}', reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').loginServer, parameters('runnerExecutionConfig').imageRepository, parameters('runnerExecutionConfig').imageTag)]",
+                  "githubApiUrl": "[parameters('runnerExecutionConfig').githubApiUrl]",
+                  "privateConnectivity": [
+                    "Runner executions start inside the hub-integrated Container Apps environment and resolve shared services through hub-linked private DNS zones.",
+                    "Image pulls use the dedicated registry identity against the private central ACR, and secret retrieval uses Key Vault over private endpoint connectivity."
+                  ],
+                  "secretHandlingModel": [
+                    "The job references a Key Vault secret URI for the GitHub PAT instead of storing PAT values in the template or repository.",
+                    "Only the runner execution identity receives Key Vault secret access; operators and future workload identities remain separate."
+                  ],
+                  "platformConstraints": [
+                    "Use this runner platform only for private repositories.",
+                    "Container Apps jobs do not support Docker-in-Docker workflows."
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('platformResourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'shared-platform-services')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "governanceBaseline": {
+      "type": "object",
+      "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.baseline.value]"
+    },
+    "requiredTags": {
+      "type": "object",
+      "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.requiredTags.value]"
+    },
+    "diagnosticsDefaults": {
+      "type": "object",
+      "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.diagnosticsDefaults.value]"
+    },
+    "allowedServiceTiers": {
+      "type": "object",
+      "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'governance-baseline'), '2025-04-01').outputs.allowedServiceTiers.value]"
+    },
+    "hubNetworkFoundation": {
+      "type": "object",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value]"
+    },
+    "operatorConnectivity": {
+      "type": "object",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'operator-connectivity'), '2025-04-01').outputs.connectivity.value]"
+    },
+    "sharedPlatformServices": {
+      "type": "object",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'shared-platform-services'), '2025-04-01').outputs.sharedServices.value]"
+    },
+    "runnerExecutionPlatform": {
+      "type": "object",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value]"
+    },
+    "workloadSpokeNetworking": {
+      "type": "object",
+      "value": {
+        "standard": {
+          "addressSupernet": "[parameters('hubNetworkConfig').futureSpokeSupernet]",
+          "requiredSubnets": [
+            "workload",
+            "privateEndpoints"
+          ],
+          "reservedFuturePrefix": "Provide subnetPrefixes.reservedFuture in each workloadSpokes entry to keep room for later in-spoke growth.",
+          "peeringModel": {
+            "topology": "HubAndSpokeOnly",
+            "spokeToSpokePeering": "NotAllowed",
+            "hubToSpoke": {
+              "allowVirtualNetworkAccess": true,
+              "allowForwardedTraffic": false,
+              "allowGatewayTransit": true
+            },
+            "spokeToHub": {
+              "allowVirtualNetworkAccess": true,
+              "allowForwardedTraffic": false,
+              "useRemoteGateways": true
+            }
+          },
+          "allowedHubDestinations": {
+            "sharedServices": "[parameters('hubNetworkConfig').subnetPrefixes.sharedServices]",
+            "privateEndpoints": "[parameters('hubNetworkConfig').subnetPrefixes.privateEndpoints]"
+          },
+          "isolationNotes": [
+            "Workloads stay in separate VNets carved from the reserved spoke supernet and never share the hub VNet.",
+            "Subnet NSGs allow hub access only to the shared-services and private-endpoints prefixes and deny traffic to the wider hub and to other spokes.",
+            "Break-glass operator reachability comes through the hub VPN gateway and does not require direct spoke-to-spoke trust."
+          ]
+        },
+        "spokes": "[variables('deployedWorkloadSpokes')]"
+      }
+    }
+  }
+}

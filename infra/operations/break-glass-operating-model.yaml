@@ -1,0 +1,38 @@
+version: 1
+landing_zone: azure-landing-zone-foundation
+scope: lz-hub-connectivity
+hub_role: platform-network
+connectivity:
+  primary_path: point-to-site-vpn
+  gateway_sku: VpnGw1
+  tunnel_protocols:
+    - OpenVPN
+  vpn_client: Azure VPN Client
+  authentication:
+    mode: microsoft-entra-id
+    primary_operator_group: alz-platform-operators
+    emergency_access_group: alz-platform-break-glass
+  client_address_pool: 172.20.250.0/24
+hub_targets:
+  - SharedServicesSubnet
+  - PrivateEndpointsSubnet
+  - ContainerAppsInfrastructureSubnet
+spoke_reachability:
+  required_peering_settings:
+    - Hub peering must allow gateway transit.
+    - Spoke peering must use remote gateways.
+    - Forwarded traffic must remain enabled where inspection is later introduced.
+  notes:
+    - Break-glass reachability is for diagnosis and recovery, not routine workload administration.
+    - Workloads stay in spokes; the hub remains a shared platform boundary.
+operations:
+  normal_access:
+    - Use just-in-time elevation for day-to-day operators before issuing VPN access.
+    - Keep the VPN client profile packaged and stored in the platform operations vault or equivalent controlled location.
+  emergency_access:
+    - Maintain separate emergency identities outside routine administrator assignments.
+    - Test emergency sign-in, VPN connectivity, DNS resolution, and shared-service reachability at least quarterly.
+  validation_checks:
+    - Confirm the operator receives an IP from the dedicated P2S pool.
+    - Confirm private DNS resolution succeeds for hub-hosted private endpoints.
+    - Confirm approved spokes are reachable only after gateway-transit peering is configured.

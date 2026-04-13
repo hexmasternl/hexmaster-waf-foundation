@@ -1,0 +1,90 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "13130458449480993207"
+    }
+  },
+  "parameters": {
+    "localVnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the local VNet where the peering is created."
+      }
+    },
+    "peeringName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the peering resource on the local VNet."
+      }
+    },
+    "remoteVnetId": {
+      "type": "string",
+      "metadata": {
+        "description": "Remote VNet resource ID."
+      }
+    },
+    "allowVirtualNetworkAccess": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Whether virtual network access is enabled across the peering."
+      }
+    },
+    "allowForwardedTraffic": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether forwarded traffic is allowed across the peering."
+      }
+    },
+    "allowGatewayTransit": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether the local VNet shares its gateway with the remote VNet."
+      }
+    },
+    "useRemoteGateways": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether the local VNet uses the remote gateway."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+      "apiVersion": "2024-05-01",
+      "name": "[format('{0}/{1}', parameters('localVnetName'), parameters('peeringName'))]",
+      "properties": {
+        "allowVirtualNetworkAccess": "[parameters('allowVirtualNetworkAccess')]",
+        "allowForwardedTraffic": "[parameters('allowForwardedTraffic')]",
+        "allowGatewayTransit": "[parameters('allowGatewayTransit')]",
+        "useRemoteGateways": "[parameters('useRemoteGateways')]",
+        "remoteVirtualNetwork": {
+          "id": "[parameters('remoteVnetId')]"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "peering": {
+      "type": "object",
+      "value": {
+        "name": "[parameters('peeringName')]",
+        "id": "[resourceId('Microsoft.Network/virtualNetworks/virtualNetworkPeerings', parameters('localVnetName'), parameters('peeringName'))]",
+        "localVnetName": "[parameters('localVnetName')]",
+        "remoteVnetId": "[parameters('remoteVnetId')]",
+        "allowVirtualNetworkAccess": "[parameters('allowVirtualNetworkAccess')]",
+        "allowForwardedTraffic": "[parameters('allowForwardedTraffic')]",
+        "allowGatewayTransit": "[parameters('allowGatewayTransit')]",
+        "useRemoteGateways": "[parameters('useRemoteGateways')]"
+      }
+    }
+  }
+}
