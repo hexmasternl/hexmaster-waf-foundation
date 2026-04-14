@@ -125,6 +125,7 @@ jobs:
               --name "$DEPLOYMENT_NAME-preview" \
               --location "$AZURE_LOCATION" \
               --parameters "$BICEP_PARAMETER_FILE" \
+              --no-pretty-print \
               --result-format FullResourcePayloads \
               --output json > what-if.json
           else
@@ -133,6 +134,7 @@ jobs:
               --location "$AZURE_LOCATION" \
               --template-file "$BICEP_TEMPLATE" \
               --parameters "@$BICEP_PARAMETER_FILE" \
+              --no-pretty-print \
               --result-format FullResourcePayloads \
               --output json > what-if.json
           fi
@@ -153,8 +155,21 @@ jobs:
           import os
           from pathlib import Path
 
-          data = json.loads(Path("what-if.json").read_text())
-          changes = data.get("changes") or data.get("properties", {}).get("changes") or []
+          raw = Path("what-if.json").read_text(encoding="utf-8").strip()
+          notes = []
+          if not raw:
+              data = {}
+              changes = []
+              notes.append("What-if output file was empty; review the uploaded artifact or Azure CLI logs for full details.")
+          else:
+              try:
+                  data = json.loads(raw)
+              except json.JSONDecodeError:
+                  data = {}
+                  changes = []
+                  notes.append("What-if output was not valid JSON; review the uploaded artifact or Azure CLI logs for full details.")
+              else:
+                  changes = data.get("changes") or data.get("properties", {}).get("changes") or []
           deployment_name = os.environ["DEPLOYMENT_NAME"] + "-preview"
           artifact_name = f"landing-zone-what-if-{os.environ['GITHUB_RUN_ID']}"
           lines = [
@@ -166,6 +181,8 @@ jobs:
               "",
               "Preview output has been uploaded as a workflow artifact."
           ]
+          if notes:
+              lines.extend(["", *[f"- Note: {note}" for note in notes]])
           Path("preview-summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
           cat preview-summary.md >> "$GITHUB_STEP_SUMMARY"
