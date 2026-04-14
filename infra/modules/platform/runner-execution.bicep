@@ -87,8 +87,6 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2025-01-01'
   location: location
   tags: tags
   properties: {
-    #disable-next-line BCP037
-    publicNetworkAccess: 'Disabled'
     appLogsConfiguration: {
       destination: 'none'
     }
@@ -215,7 +213,7 @@ output runnerPlatform object = {
     name: containerAppsEnvironment.name
     id: containerAppsEnvironment.id
     subnetId: infrastructureSubnetId
-    publicNetworkAccess: 'Disabled'
+    ingressModel: 'InternalOnly'
     boundaryNotes: [
       'The Container Apps environment is the runner execution boundary and is isolated from shared services by subnet separation.'
       'The environment is internal-only and uses the dedicated hub runner subnet rather than sharing workload spokes or operator connectivity resources.'

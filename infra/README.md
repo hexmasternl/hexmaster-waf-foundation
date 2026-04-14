@@ -38,7 +38,6 @@ This scaffold implements OpenSpec tasks:
 ```powershell
 az deployment sub create `
   --location westeurope `
-  --template-file .\infra\landing-zone\main.bicep `
   --parameters .\infra\landing-zone\main.bicepparam
 ```
 
@@ -102,7 +101,6 @@ If a workflow run fails:
 az deployment sub what-if `
   --name landing-zone-preview `
   --location westeurope `
-  --template-file .\infra\landing-zone\main.bicep `
   --parameters .\infra\landing-zone\main.bicepparam
 
 az deployment sub show `

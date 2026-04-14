@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "4945427182166665087"
+      "templateHash": "14094913809001587613"
     }
   },
   "parameters": {
@@ -2442,7 +2442,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "4020157003737991879"
+              "templateHash": "13187557637643409229"
             }
           },
           "parameters": {
@@ -2563,7 +2563,6 @@
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
               "properties": {
-                "publicNetworkAccess": "Disabled",
                 "appLogsConfiguration": {
                   "destination": "none"
                 },
@@ -2708,7 +2707,7 @@
                   "name": "[parameters('containerAppsEnvironmentName')]",
                   "id": "[resourceId('Microsoft.App/managedEnvironments', parameters('containerAppsEnvironmentName'))]",
                   "subnetId": "[parameters('infrastructureSubnetId')]",
-                  "publicNetworkAccess": "Disabled",
+                  "ingressModel": "InternalOnly",
                   "boundaryNotes": [
                     "The Container Apps environment is the runner execution boundary and is isolated from shared services by subnet separation.",
                     "The environment is internal-only and uses the dedicated hub runner subnet rather than sharing workload spokes or operator connectivity resources."
