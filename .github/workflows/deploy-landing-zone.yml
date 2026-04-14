@@ -120,13 +120,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          az deployment sub what-if \
-            --name "$DEPLOYMENT_NAME-preview" \
-            --location "$AZURE_LOCATION" \
-            --template-file "$BICEP_TEMPLATE" \
-            --parameters @"$BICEP_PARAMETER_FILE" \
-            --result-format FullResourcePayloads \
-            --output json > what-if.json
+          if [[ "$BICEP_PARAMETER_FILE" == *.bicepparam ]]; then
+            az deployment sub what-if \
+              --name "$DEPLOYMENT_NAME-preview" \
+              --location "$AZURE_LOCATION" \
+              --parameters "$BICEP_PARAMETER_FILE" \
+              --result-format FullResourcePayloads \
+              --output json > what-if.json
+          else
+            az deployment sub what-if \
+              --name "$DEPLOYMENT_NAME-preview" \
+              --location "$AZURE_LOCATION" \
+              --template-file "$BICEP_TEMPLATE" \
+              --parameters "@$BICEP_PARAMETER_FILE" \
+              --result-format FullResourcePayloads \
+              --output json > what-if.json
+          fi
 
       - name: Publish preview artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -187,12 +196,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          az deployment sub create \
-            --name "$DEPLOYMENT_NAME" \
-            --location "$AZURE_LOCATION" \
-            --template-file "$BICEP_TEMPLATE" \
-            --parameters @"$BICEP_PARAMETER_FILE" \
-            --output json > deployment.json
+          if [[ "$BICEP_PARAMETER_FILE" == *.bicepparam ]]; then
+            az deployment sub create \
+              --name "$DEPLOYMENT_NAME" \
+              --location "$AZURE_LOCATION" \
+              --parameters "$BICEP_PARAMETER_FILE" \
+              --output json > deployment.json
+          else
+            az deployment sub create \
+              --name "$DEPLOYMENT_NAME" \
+              --location "$AZURE_LOCATION" \
+              --template-file "$BICEP_TEMPLATE" \
+              --parameters "@$BICEP_PARAMETER_FILE" \
+              --output json > deployment.json
+          fi
 
       - name: Publish deployment artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
