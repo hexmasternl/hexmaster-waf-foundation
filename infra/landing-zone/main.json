@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "172476697189136595"
+      "templateHash": "10765494589659066924"
     }
   },
   "parameters": {
@@ -153,12 +153,7 @@
         "memory": "4Gi",
         "githubPatSecretName": "github-actions-pat",
         "githubPatSecretUri": "",
-        "registrationTokenApiUrl": "",
-        "environmentNetwork": {
-          "dockerBridgeCidr": "10.255.0.0/16",
-          "platformReservedCidr": "10.254.0.0/16",
-          "platformReservedDnsIP": "10.254.0.10"
-        }
+        "registrationTokenApiUrl": ""
       },
       "metadata": {
         "description": "Runner execution platform configuration for the shared Container Apps environment and GitHub runner job."
@@ -2058,7 +2053,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "13028050792713282771"
+              "templateHash": "4064307284126873382"
             }
           },
           "parameters": {
@@ -2140,12 +2135,7 @@
                 "memory": "4Gi",
                 "githubPatSecretName": "github-actions-pat",
                 "githubPatSecretUri": "",
-                "registrationTokenApiUrl": "",
-                "environmentNetwork": {
-                  "dockerBridgeCidr": "10.255.0.0/16",
-                  "platformReservedCidr": "10.254.0.0/16",
-                  "platformReservedDnsIP": "10.254.0.10"
-                }
+                "registrationTokenApiUrl": ""
               },
               "metadata": {
                 "description": "Runner execution configuration for the Container Apps environment and GitHub runner job."
@@ -2181,10 +2171,7 @@
               "properties": {
                 "vnetConfiguration": {
                   "infrastructureSubnetId": "[parameters('infrastructureSubnetId')]",
-                  "internal": true,
-                  "dockerBridgeCidr": "[parameters('runnerExecutionConfig').environmentNetwork.dockerBridgeCidr]",
-                  "platformReservedCidr": "[parameters('runnerExecutionConfig').environmentNetwork.platformReservedCidr]",
-                  "platformReservedDnsIP": "[parameters('runnerExecutionConfig').environmentNetwork.platformReservedDnsIP]"
+                  "internal": true
                 }
               }
             },
