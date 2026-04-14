@@ -112,11 +112,6 @@ param runnerExecutionConfig object = {
   githubPatSecretName: 'github-actions-pat'
   githubPatSecretUri: ''
   registrationTokenApiUrl: ''
-  environmentNetwork: {
-    dockerBridgeCidr: '10.255.0.0/16'
-    platformReservedCidr: '10.254.0.0/16'
-    platformReservedDnsIP: '10.254.0.10'
-  }
 }
 
 @description('Optional workload spoke definitions. Each spoke must use non-overlapping prefixes carved from hubNetworkConfig.futureSpokeSupernet and reserve room for workload, private endpoint, and future growth subnets.')
