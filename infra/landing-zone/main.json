@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "290868304064405056"
+      "templateHash": "13521643953556074577"
     }
   },
   "parameters": {
@@ -146,12 +146,12 @@
           "vmss"
         ],
         "runnerGroup": "HexMaster Landingzone",
-        "runnerVersion": "2.321.0",
+        "runnerVersion": "2.333.1",
         "vmSku": "Standard_D2as_v5",
         "osDiskSizeGb": 64,
         "adminUsername": "runneradmin",
         "adminPublicKey": "",
-        "minRunners": 1,
+        "minRunners": 0,
         "maxRunners": 10,
         "githubPatSecretName": "github-actions-pat",
         "githubWebhookSecretName": "github-webhook-secret",
@@ -2069,7 +2069,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "11271092244529965457"
+              "templateHash": "13327154460899302685"
             }
           },
           "parameters": {
@@ -2140,7 +2140,7 @@
                 "osDiskSizeGb": 64,
                 "adminUsername": "runneradmin",
                 "adminPublicKey": "",
-                "minRunners": 1,
+                "minRunners": 0,
                 "maxRunners": 10,
                 "githubPatSecretName": "github-actions-pat",
                 "githubWebhookSecretName": "github-webhook-secret",
@@ -2440,7 +2440,7 @@
                 ],
                 "platformConstraints": [
                   "Register runners at the GitHub organization scope and keep them in the HexMaster Landingzone runner group.",
-                  "VMSS capacity defaults to one warm runner and is expected to scale with workflow_job webhook activity.",
+                  "VMSS capacity defaults to zero idle runners and scales on demand from workflow_job webhook activity.",
                   "Linux runners install Docker so workflows can use container actions and service containers."
                 ]
               }

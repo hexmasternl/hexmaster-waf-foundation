@@ -101,12 +101,12 @@ param runnerExecutionConfig object = {
     'vmss'
   ]
   runnerGroup: 'HexMaster Landingzone'
-  runnerVersion: '2.321.0'
+  runnerVersion: '2.333.1'
   vmSku: 'Standard_D2as_v5'
   osDiskSizeGb: 64
   adminUsername: 'runneradmin'
   adminPublicKey: ''
-  minRunners: 1
+  minRunners: 0
   maxRunners: 10
   githubPatSecretName: 'github-actions-pat'
   githubWebhookSecretName: 'github-webhook-secret'

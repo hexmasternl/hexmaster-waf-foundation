@@ -126,7 +126,7 @@ az deployment sub show `
 
 The landing-zone runner uses an **Azure Virtual Machine Scale Set** plus a lightweight **Azure Function** webhook autoscaler. A single GitHub PAT stored in Key Vault handles both:
 
-1. **Webhook-driven scaling** — the Function App reacts to `workflow_job` events and changes VMSS capacity between `1` and `10`
+1. **Webhook-driven scaling** — the Function App reacts to `workflow_job` events and changes VMSS capacity between `0` and `10`
 2. **Runner registration** — the VMSS cloud-init bootstrap calls the [registration token API](https://docs.github.com/en/rest/actions/self-hosted-runners#create-a-registration-token-for-an-organization) at runtime and runs `config.sh --ephemeral`
 
 Runner registrations are **ephemeral** — each VM instance registers for a single job, executes it, deregisters, and then the systemd service is ready to register again while the VM remains in the scale set.
@@ -138,7 +138,7 @@ Create these secrets in the platform Key Vault:
 - `github-actions-pat` — classic PAT with `admin:org` and `repo` scope
 - `github-webhook-secret` — shared secret used to validate the GitHub `workflow_job` webhook payload
 
-The deployment workflow can seed `github-actions-pat` automatically from the repository secret `ADMIN_ORG_PAT`. The webhook secret still needs to be created in Key Vault separately.
+The deployment workflow can seed `github-actions-pat` automatically from the repository secret `GITHUB_ADMIN_ORG_PAT`. The webhook secret still needs to be created in Key Vault separately.
 
 #### VMSS bootstrap requirements
 
