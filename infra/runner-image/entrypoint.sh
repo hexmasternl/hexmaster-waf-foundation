@@ -24,7 +24,7 @@ echo "Configuring runner for ${GH_URL} in group '${RUNNER_GROUP}'..."
   --url "${GH_URL}" \
   --token "${REG_TOKEN}" \
   --runnergroup "${RUNNER_GROUP}" \
-  --labels "aca-job,self-hosted,linux,x64" \
+  --labels "${RUNNER_LABELS}" \
   --name "aca-runner-${HOSTNAME}" \
   --unattended \
   --ephemeral \

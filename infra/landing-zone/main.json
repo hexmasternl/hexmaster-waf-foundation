@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "15075218088090710045"
+      "templateHash": "11901479519475769509"
     }
   },
   "parameters": {
@@ -136,7 +136,12 @@
         "githubUrl": "https://github.com/hexmasternl",
         "runnerScope": "org",
         "owner": "hexmasternl",
-        "repositories": [],
+        "repositories": [
+          "hexmaster-waf-foundation"
+        ],
+        "runnerLabels": [
+          "aca-job"
+        ],
         "runnerGroup": "HexMaster Landingzone",
         "targetWorkflowQueueLength": 1,
         "minExecutions": 0,
@@ -1982,7 +1987,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "3860228309085616845"
+              "templateHash": "13202404146364596579"
             }
           },
           "parameters": {
@@ -2057,7 +2062,12 @@
                 "githubUrl": "https://github.com/hexmasternl",
                 "runnerScope": "org",
                 "owner": "hexmasternl",
-                "repositories": [],
+                "repositories": [
+                  "hexmaster-waf-foundation"
+                ],
+                "runnerLabels": [
+                  "aca-job"
+                ],
                 "runnerGroup": "HexMaster Landingzone",
                 "targetWorkflowQueueLength": 1,
                 "minExecutions": 0,
@@ -2169,10 +2179,11 @@
                           "name": "github-runner",
                           "type": "github-runner",
                           "metadata": {
-                            "githubAPIURL": "[parameters('runnerExecutionConfig').githubApiUrl]",
+                            "githubApiURL": "[parameters('runnerExecutionConfig').githubApiUrl]",
                             "owner": "[parameters('runnerExecutionConfig').owner]",
                             "runnerScope": "[parameters('runnerExecutionConfig').runnerScope]",
                             "repos": "[join(parameters('runnerExecutionConfig').repositories, ',')]",
+                            "labels": "[join(parameters('runnerExecutionConfig').runnerLabels, ',')]",
                             "targetWorkflowQueueLength": "[string(parameters('runnerExecutionConfig').targetWorkflowQueueLength)]"
                           },
                           "auth": [
@@ -2203,6 +2214,10 @@
                         {
                           "name": "RUNNER_GROUP",
                           "value": "[parameters('runnerExecutionConfig').runnerGroup]"
+                        },
+                        {
+                          "name": "RUNNER_LABELS",
+                          "value": "[join(parameters('runnerExecutionConfig').runnerLabels, ',')]"
                         },
                         {
                           "name": "REGISTRATION_TOKEN_API_URL",

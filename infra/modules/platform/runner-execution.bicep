@@ -39,7 +39,12 @@ param runnerExecutionConfig object = {
   githubUrl: 'https://github.com/hexmasternl'
   runnerScope: 'org'
   owner: 'hexmasternl'
-  repositories: []
+  repositories: [
+    'hexmaster-waf-foundation'
+  ]
+  runnerLabels: [
+    'aca-job'
+  ]
   runnerGroup: 'HexMaster Landingzone'
   targetWorkflowQueueLength: 1
   minExecutions: 0
@@ -145,12 +150,13 @@ resource githubRunnerJob 'Microsoft.App/jobs@2025-01-01' = if (deployRunnerJob) 
               name: 'github-runner'
               type: 'github-runner'
                 metadata: {
-                  githubAPIURL: runnerExecutionConfig.githubApiUrl
+                  githubApiURL: runnerExecutionConfig.githubApiUrl
                   owner: runnerExecutionConfig.owner
                   runnerScope: runnerExecutionConfig.runnerScope
                   repos: join(runnerExecutionConfig.repositories, ',')
-                targetWorkflowQueueLength: string(runnerExecutionConfig.targetWorkflowQueueLength)
-              }
+                  labels: join(runnerExecutionConfig.runnerLabels, ',')
+                  targetWorkflowQueueLength: string(runnerExecutionConfig.targetWorkflowQueueLength)
+                }
               auth: [
                 {
                   secretRef: runnerExecutionConfig.githubPatSecretName
@@ -179,6 +185,10 @@ resource githubRunnerJob 'Microsoft.App/jobs@2025-01-01' = if (deployRunnerJob) 
             {
               name: 'RUNNER_GROUP'
               value: runnerExecutionConfig.runnerGroup
+            }
+            {
+              name: 'RUNNER_LABELS'
+              value: join(runnerExecutionConfig.runnerLabels, ',')
             }
             {
               name: 'REGISTRATION_TOKEN_API_URL'

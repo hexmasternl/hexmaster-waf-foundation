@@ -75,7 +75,12 @@ param runnerExecutionConfig = {
   githubUrl: 'https://github.com/hexmasternl'
   runnerScope: 'org'
   owner: 'hexmasternl'
-  repositories: []
+  repositories: [
+    'hexmaster-waf-foundation'
+  ]
+  runnerLabels: [
+    'aca-job'
+  ]
   runnerGroup: 'HexMaster Landingzone'
   targetWorkflowQueueLength: 1
   minExecutions: 0
