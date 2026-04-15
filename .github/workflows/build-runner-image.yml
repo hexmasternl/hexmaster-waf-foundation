@@ -13,6 +13,7 @@ on:
         description: Name of the Azure Container Registry.
         required: true
         type: string
+        default: 'acrhexlzdevwesteu.azurecr.io'
       image_tag:
         description: Image tag to apply.
         required: true
