@@ -21,7 +21,7 @@ param containerRegistryResourceGroupName string
 @description('Name of the shared platform Key Vault that stores runner secrets and future platform secrets.')
 param keyVaultName string
 
-@description('Shared-service hosting configuration for secret storage and connectivity to an existing central registry.')
+@description('Shared-service hosting configuration for secret storage and consumption of an existing central registry.')
 param sharedServicesConfig object = {
   secretVault: {
     sku: 'standard'
@@ -67,24 +67,6 @@ resource platformKeyVault 'Microsoft.KeyVault/vaults@2024-11-01' = {
   }
 }
 
-resource acrPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
-  name: 'privatelink.azurecr.io'
-  location: 'global'
-  tags: tags
-}
-
-resource acrPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
-  parent: acrPrivateDnsZone
-  name: 'hub-link'
-  location: 'global'
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: hubVirtualNetworkId
-    }
-  }
-}
-
 resource keyVaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
   name: 'privatelink.vaultcore.azure.net'
   location: 'global'
@@ -100,43 +82,6 @@ resource keyVaultPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNe
     virtualNetwork: {
       id: hubVirtualNetworkId
     }
-  }
-}
-
-resource containerRegistryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
-  name: 'pep-${containerRegistryName}'
-  location: location
-  tags: tags
-  properties: {
-    subnet: {
-      id: privateEndpointSubnetId
-    }
-    privateLinkServiceConnections: [
-      {
-        name: 'acr-registry'
-        properties: {
-          privateLinkServiceId: containerRegistry.id
-          groupIds: [
-            'registry'
-          ]
-        }
-      }
-    ]
-  }
-}
-
-resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01' = {
-  parent: containerRegistryPrivateEndpoint
-  name: 'default'
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: 'acr-registry'
-        properties: {
-          privateDnsZoneId: acrPrivateDnsZone.id
-        }
-      }
-    ]
   }
 }
 
@@ -195,12 +140,12 @@ output sharedServices object = {
     loginServer: containerRegistry.properties.loginServer
     sku: containerRegistry.sku.name
     publicNetworkAccess: containerRegistry.properties.publicNetworkAccess
-    privateEndpointId: containerRegistryPrivateEndpoint.id
-    privateDnsZoneId: acrPrivateDnsZone.id
+    privateEndpointId: null
+    privateDnsZoneId: null
     imageConsumptionPattern: [
       'Runner jobs pull images from the central registry with a dedicated managed identity.'
-      'Future workload spokes consume shared images over the hub-linked privatelink.azurecr.io zone.'
-      'This template assumes the ACR already exists and only adds private connectivity from the landing zone.'
+      'This template assumes the ACR already exists in a separate resource group and does not modify its network configuration.'
+      'Future workload spokes consume shared images using the existing registry access model rather than landing-zone-managed private endpoints.'
       'Enable ACR ARM-audience authentication before first runner image pull so Container Apps managed identities can authenticate without admin credentials.'
     ]
   }

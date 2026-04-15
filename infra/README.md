@@ -22,7 +22,7 @@ This scaffold implements OpenSpec tasks:
 - **2.2** baseline NSG, route-table, and DNS patterns that keep the hub spoke-ready
 - **3.1** Point-to-Site VPN gateway, OpenVPN tunnel path, and Microsoft Entra ID authentication metadata
 - **3.2** break-glass operating model for reaching approved hub resources and peered spokes
-- **4.1** central Azure Container Registry integration, private-link posture, and spoke consumption through hub-hosted private DNS
+- **4.1** central Azure Container Registry integration and shared image consumption
 - **4.2** shared-service hosting pattern in a dedicated platform resource group with central private endpoint and DNS placement for future hub services
 - **5.1** Azure Container Apps managed environment boundary for GitHub runners on the dedicated hub runner subnet
 - **5.2** runner identities, ACR image pull model, Key Vault secret references, and private connectivity notes for hub-hosted services
@@ -112,7 +112,7 @@ az deployment sub show `
 - Operator access uses **Point-to-Site VPN** on **VpnGw1AZ** rather than Bastion
 - Private DNS is centralized in the hub using Azure-provided DNS initially, with hub-linked private zones for future services
 - Break-glass reachability to spokes depends on hub-spoke peering with **allowGatewayTransit** and **useRemoteGateways**
-- The shared Key Vault is deployed into the platform resource group, and the existing central ACR (`nvv54gsk4pteu`) in resource group `mvp-int-env` is connected through a private endpoint in the hub
+- The shared Key Vault is deployed into the platform resource group, while the existing central ACR (`nvv54gsk4pteu`) in resource group `mvp-int-env` is consumed as an external dependency without landing-zone-managed network changes
 - Runner jobs use a dedicated Container Apps environment with separate identities for image pull and workload execution
 - The default runner registration target is the GitHub organization `hexmasternl` in the `HexMaster Landingzone` runner group
 - Workload spokes are allocated from the reserved **10.32.0.0/12** supernet and are expected to reserve space for workload, private-endpoint, and future expansion ranges
@@ -144,4 +144,4 @@ Before the ACA Job can start, the runner container image must be pushed to the e
 az acr build --registry <acr-name> --image github-actions-runner:latest ./infra/runner-image
 ```
 
-> **Note:** The central ACR has public network access disabled. For the initial image build, either temporarily enable public access on the ACR or push via VPN/private endpoint connectivity.
+> **Note:** This landing-zone deployment does not change the existing ACR network configuration. Push the runner image using whatever access model that registry already permits.

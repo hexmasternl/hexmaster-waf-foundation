@@ -70,7 +70,7 @@ param operatorConnectivityConfig object = {
   }
 }
 
-@description('Shared platform service configuration for the hub-hosted secret store and connectivity to the existing central registry.')
+@description('Shared platform service configuration for the hub-hosted secret store and consumption of the existing central registry.')
 param sharedServicesConfig object = {
   secretVault: {
     sku: 'standard'

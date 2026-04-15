@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "9107399602800256645"
+      "templateHash": "15075218088090710045"
     }
   },
   "parameters": {
@@ -123,7 +123,7 @@
         }
       },
       "metadata": {
-        "description": "Shared platform service configuration for the hub-hosted secret store and connectivity to the existing central registry."
+        "description": "Shared platform service configuration for the hub-hosted secret store and consumption of the existing central registry."
       }
     },
     "runnerExecutionConfig": {
@@ -1715,7 +1715,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "18115289607749852940"
+              "templateHash": "5384636369762801612"
             }
           },
           "parameters": {
@@ -1778,7 +1778,7 @@
                 }
               },
               "metadata": {
-                "description": "Shared-service hosting configuration for secret storage and connectivity to an existing central registry."
+                "description": "Shared-service hosting configuration for secret storage and consumption of an existing central registry."
               }
             }
           },
@@ -1813,28 +1813,6 @@
             {
               "type": "Microsoft.Network/privateDnsZones",
               "apiVersion": "2024-06-01",
-              "name": "privatelink.azurecr.io",
-              "location": "global",
-              "tags": "[parameters('tags')]"
-            },
-            {
-              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
-              "apiVersion": "2024-06-01",
-              "name": "[format('{0}/{1}', 'privatelink.azurecr.io', 'hub-link')]",
-              "location": "global",
-              "properties": {
-                "registrationEnabled": false,
-                "virtualNetwork": {
-                  "id": "[parameters('hubVirtualNetworkId')]"
-                }
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]"
-              ]
-            },
-            {
-              "type": "Microsoft.Network/privateDnsZones",
-              "apiVersion": "2024-06-01",
               "name": "privatelink.vaultcore.azure.net",
               "location": "global",
               "tags": "[parameters('tags')]"
@@ -1852,48 +1830,6 @@
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
-              ]
-            },
-            {
-              "type": "Microsoft.Network/privateEndpoints",
-              "apiVersion": "2024-05-01",
-              "name": "[format('pep-{0}', parameters('containerRegistryName'))]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "subnet": {
-                  "id": "[parameters('privateEndpointSubnetId')]"
-                },
-                "privateLinkServiceConnections": [
-                  {
-                    "name": "acr-registry",
-                    "properties": {
-                      "privateLinkServiceId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('containerRegistryResourceGroupName')), 'Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]",
-                      "groupIds": [
-                        "registry"
-                      ]
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-              "apiVersion": "2024-05-01",
-              "name": "[format('{0}/{1}', format('pep-{0}', parameters('containerRegistryName')), 'default')]",
-              "properties": {
-                "privateDnsZoneConfigs": [
-                  {
-                    "name": "acr-registry",
-                    "properties": {
-                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]"
-                    }
-                  }
-                ]
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]",
-                "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}', parameters('containerRegistryName')))]"
               ]
             },
             {
@@ -1963,12 +1899,12 @@
                   "loginServer": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('containerRegistryResourceGroupName')), 'Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').loginServer]",
                   "sku": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('containerRegistryResourceGroupName')), 'Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01', 'full').sku.name]",
                   "publicNetworkAccess": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('containerRegistryResourceGroupName')), 'Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').publicNetworkAccess]",
-                  "privateEndpointId": "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}', parameters('containerRegistryName')))]",
-                  "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]",
+                  "privateEndpointId": null,
+                  "privateDnsZoneId": null,
                   "imageConsumptionPattern": [
                     "Runner jobs pull images from the central registry with a dedicated managed identity.",
-                    "Future workload spokes consume shared images over the hub-linked privatelink.azurecr.io zone.",
-                    "This template assumes the ACR already exists and only adds private connectivity from the landing zone.",
+                    "This template assumes the ACR already exists in a separate resource group and does not modify its network configuration.",
+                    "Future workload spokes consume shared images using the existing registry access model rather than landing-zone-managed private endpoints.",
                     "Enable ACR ARM-audience authentication before first runner image pull so Container Apps managed identities can authenticate without admin credentials."
                   ]
                 },
