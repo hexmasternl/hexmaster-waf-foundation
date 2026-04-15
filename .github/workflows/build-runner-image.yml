@@ -10,10 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       acr_name:
-        description: Name of the Azure Container Registry.
-        required: true
+        description: Optional Azure Container Registry resource name override.
+        required: false
         type: string
-        default: 'acrhexlzdevwesteu.azurecr.io'
       image_tag:
         description: Image tag to apply.
         required: true
@@ -29,6 +28,7 @@ permissions:
   id-token: write
 
 env:
+  ACR_NAME: ${{ github.event.inputs.acr_name || vars.ACR_NAME || vars.AZURE_CONTAINER_REGISTRY_NAME }}
   IMAGE_REPOSITORY: github-actions-runner
   IMAGE_TAG: ${{ github.event.inputs.image_tag || 'latest' }}
 
@@ -53,10 +53,9 @@ jobs:
         id: acr
         shell: bash
         run: |
-          ACR_NAME="${{ github.event.inputs.acr_name }}"
+          ACR_NAME="${{ env.ACR_NAME }}"
           if [ -z "$ACR_NAME" ]; then
-            echo "::error::ACR name must be provided via workflow_dispatch input or set as a variable."
-            echo "Tip: run this workflow manually and provide the ACR name."
+            echo "::error::Set vars.ACR_NAME or vars.AZURE_CONTAINER_REGISTRY_NAME, or provide the workflow_dispatch acr_name override."
             exit 1
           fi
           echo "name=$ACR_NAME" >> "$GITHUB_OUTPUT"
