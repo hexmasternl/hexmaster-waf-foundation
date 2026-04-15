@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "772027005682591537"
+      "templateHash": "13165135264157789102"
     }
   },
   "parameters": {
@@ -110,10 +110,6 @@
     "sharedServicesConfig": {
       "type": "object",
       "defaultValue": {
-        "registry": {
-          "sku": "Premium",
-          "publicNetworkAccess": "Disabled"
-        },
         "secretVault": {
           "sku": "standard",
           "publicNetworkAccess": "Disabled",
@@ -127,7 +123,7 @@
         }
       },
       "metadata": {
-        "description": "Shared platform service configuration for the hub-hosted central registry and secret store."
+        "description": "Shared platform service configuration for the hub-hosted secret store and connectivity to the existing central registry."
       }
     },
     "runnerExecutionConfig": {
@@ -211,7 +207,6 @@
       }
     ],
     "locationToken": "[toLower(replace(parameters('primaryLocation'), ' ', ''))]",
-    "landingZoneToken": "[toLower(replace(parameters('landingZoneName'), '-', ''))]",
     "prefix": "[format('{0}-{1}', parameters('landingZoneName'), parameters('environment'))]",
     "requiredTags": "[union(createObject('alz:landingZone', parameters('landingZoneName'), 'alz:environment', parameters('environment'), 'alz:owner', parameters('platformOwner'), 'alz:costCenter', parameters('platformCostCenter'), 'alz:lifecycle', 'shared-platform', 'alz:managedBy', 'bicep'), parameters('tags'))]",
     "connectivityResourceGroupName": "[format('rg-{0}-connectivity-{1}', variables('prefix'), variables('locationToken'))]",
@@ -223,7 +218,7 @@
     "vpnGatewayPublicIpName": "[format('pip-{0}-vpn-az-{1}', variables('prefix'), variables('locationToken'))]",
     "vpnGatewayName": "[format('vpngw-{0}-{1}', variables('prefix'), variables('locationToken'))]",
     "containerAppsEnvironmentName": "[format('cae-{0}-{1}', variables('prefix'), variables('locationToken'))]",
-    "containerRegistryName": "[take(format('acr{0}{1}{2}', variables('landingZoneToken'), parameters('environment'), take(variables('locationToken'), 6)), 50)]",
+    "containerRegistryName": "nvv54gsk4pteu",
     "platformKeyVaultName": "[take(format('kv-{0}-{1}', variables('prefix'), variables('locationToken')), 24)]",
     "runnerJobName": "[format('job-{0}-github', variables('prefix'))]",
     "runnerExecutionIdentityName": "[format('id-{0}-runner-exec', variables('prefix'))]",
@@ -1716,7 +1711,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "3214137509041544570"
+              "templateHash": "17099341158692382200"
             }
           },
           "parameters": {
@@ -1760,10 +1755,6 @@
             "sharedServicesConfig": {
               "type": "object",
               "defaultValue": {
-                "registry": {
-                  "sku": "Premium",
-                  "publicNetworkAccess": "Disabled"
-                },
                 "secretVault": {
                   "sku": "standard",
                   "publicNetworkAccess": "Disabled",
@@ -1777,26 +1768,11 @@
                 }
               },
               "metadata": {
-                "description": "Shared-service hosting configuration for central registry and secret storage."
+                "description": "Shared-service hosting configuration for secret storage and connectivity to an existing central registry."
               }
             }
           },
           "resources": [
-            {
-              "type": "Microsoft.ContainerRegistry/registries",
-              "apiVersion": "2025-04-01",
-              "name": "[parameters('containerRegistryName')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "sku": {
-                "name": "[parameters('sharedServicesConfig').registry.sku]"
-              },
-              "properties": {
-                "adminUserEnabled": false,
-                "publicNetworkAccess": "[parameters('sharedServicesConfig').registry.publicNetworkAccess]",
-                "networkRuleBypassOptions": "AzureServices"
-              }
-            },
             {
               "type": "Microsoft.KeyVault/vaults",
               "apiVersion": "2024-11-01",
@@ -1889,10 +1865,7 @@
                     }
                   }
                 ]
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]"
-              ]
+              }
             },
             {
               "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
@@ -1978,13 +1951,14 @@
                   "name": "[parameters('containerRegistryName')]",
                   "id": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]",
                   "loginServer": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').loginServer]",
-                  "sku": "[parameters('sharedServicesConfig').registry.sku]",
-                  "publicNetworkAccess": "[parameters('sharedServicesConfig').registry.publicNetworkAccess]",
+                  "sku": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01', 'full').sku.name]",
+                  "publicNetworkAccess": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').publicNetworkAccess]",
                   "privateEndpointId": "[resourceId('Microsoft.Network/privateEndpoints', format('pep-{0}', parameters('containerRegistryName')))]",
                   "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurecr.io')]",
                   "imageConsumptionPattern": [
                     "Runner jobs pull images from the central registry with a dedicated managed identity.",
                     "Future workload spokes consume shared images over the hub-linked privatelink.azurecr.io zone.",
+                    "This template assumes the ACR already exists and only adds private connectivity from the landing zone.",
                     "Enable ACR ARM-audience authentication before first runner image pull so Container Apps managed identities can authenticate without admin credentials."
                   ]
                 },

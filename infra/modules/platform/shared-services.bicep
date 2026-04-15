@@ -15,15 +15,14 @@ param privateEndpointSubnetId string
 @description('Name of the central Azure Container Registry.')
 param containerRegistryName string
 
+@description('Resource group containing the existing central Azure Container Registry.')
+param containerRegistryResourceGroupName string
+
 @description('Name of the shared platform Key Vault that stores runner secrets and future platform secrets.')
 param keyVaultName string
 
-@description('Shared-service hosting configuration for central registry and secret storage.')
+@description('Shared-service hosting configuration for secret storage and connectivity to an existing central registry.')
 param sharedServicesConfig object = {
-  registry: {
-    sku: 'Premium'
-    publicNetworkAccess: 'Disabled'
-  }
   secretVault: {
     sku: 'standard'
     publicNetworkAccess: 'Disabled'
@@ -37,18 +36,9 @@ param sharedServicesConfig object = {
   }
 }
 
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' = {
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' existing = {
   name: containerRegistryName
-  location: location
-  tags: tags
-  sku: {
-    name: sharedServicesConfig.registry.sku
-  }
-  properties: {
-    adminUserEnabled: false
-    publicNetworkAccess: sharedServicesConfig.registry.publicNetworkAccess
-    networkRuleBypassOptions: 'AzureServices'
-  }
+  scope: resourceGroup(subscription().subscriptionId, containerRegistryResourceGroupName)
 }
 
 resource platformKeyVault 'Microsoft.KeyVault/vaults@2024-11-01' = {
@@ -203,13 +193,14 @@ output sharedServices object = {
     name: containerRegistry.name
     id: containerRegistry.id
     loginServer: containerRegistry.properties.loginServer
-    sku: sharedServicesConfig.registry.sku
-    publicNetworkAccess: sharedServicesConfig.registry.publicNetworkAccess
+    sku: containerRegistry.sku.name
+    publicNetworkAccess: containerRegistry.properties.publicNetworkAccess
     privateEndpointId: containerRegistryPrivateEndpoint.id
     privateDnsZoneId: acrPrivateDnsZone.id
     imageConsumptionPattern: [
       'Runner jobs pull images from the central registry with a dedicated managed identity.'
       'Future workload spokes consume shared images over the hub-linked privatelink.azurecr.io zone.'
+      'This template assumes the ACR already exists and only adds private connectivity from the landing zone.'
       'Enable ACR ARM-audience authentication before first runner image pull so Container Apps managed identities can authenticate without admin credentials.'
     ]
   }

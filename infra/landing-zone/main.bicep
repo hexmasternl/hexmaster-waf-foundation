@@ -70,12 +70,8 @@ param operatorConnectivityConfig object = {
   }
 }
 
-@description('Shared platform service configuration for the hub-hosted central registry and secret store.')
+@description('Shared platform service configuration for the hub-hosted secret store and connectivity to the existing central registry.')
 param sharedServicesConfig object = {
-  registry: {
-    sku: 'Premium'
-    publicNetworkAccess: 'Disabled'
-  }
   secretVault: {
     sku: 'standard'
     publicNetworkAccess: 'Disabled'
@@ -119,7 +115,6 @@ param runnerExecutionConfig object = {
 param workloadSpokes array = []
 
 var locationToken = toLower(replace(primaryLocation, ' ', ''))
-var landingZoneToken = toLower(replace(landingZoneName, '-', ''))
 var prefix = '${landingZoneName}-${environment}'
 var requiredTags = union({
   'alz:landingZone': landingZoneName
@@ -138,7 +133,8 @@ var runnerInfrastructureSubnetName = 'snet-${prefix}-runners'
 var vpnGatewayPublicIpName = 'pip-${prefix}-vpn-az-${locationToken}'
 var vpnGatewayName = 'vpngw-${prefix}-${locationToken}'
 var containerAppsEnvironmentName = 'cae-${prefix}-${locationToken}'
-var containerRegistryName = take('acr${landingZoneToken}${environment}${take(locationToken, 6)}', 50)
+var containerRegistryName = 'nvv54gsk4pteu'
+var containerRegistryResourceGroupName = 'mvp-int-env'
 var platformKeyVaultName = take('kv-${prefix}-${locationToken}', 24)
 var runnerJobName = 'job-${prefix}-github'
 var runnerExecutionIdentityName = 'id-${prefix}-runner-exec'
@@ -277,6 +273,7 @@ module sharedServices '../modules/platform/shared-services.bicep' = {
     hubVirtualNetworkId: hubNetwork.outputs.foundation.vnetId
     privateEndpointSubnetId: hubNetwork.outputs.foundation.subnetIds.privateEndpoints
     containerRegistryName: containerRegistryName
+    containerRegistryResourceGroupName: containerRegistryResourceGroupName
     keyVaultName: platformKeyVaultName
     sharedServicesConfig: sharedServicesConfig
   }
@@ -293,6 +290,7 @@ module runnerExecution '../modules/platform/runner-execution.bicep' = {
     runnerExecutionIdentityName: runnerExecutionIdentityName
     runnerRegistryIdentityName: runnerRegistryIdentityName
     containerRegistryName: containerRegistryName
+    containerRegistryResourceGroupName: containerRegistryResourceGroupName
     keyVaultName: platformKeyVaultName
     infrastructureSubnetId: hubNetwork.outputs.foundation.subnetIds.containerAppsInfrastructure
     runnerExecutionConfig: runnerExecutionConfig

@@ -54,10 +54,6 @@ param operatorConnectivityConfig = {
 }
 
 param sharedServicesConfig = {
-  registry: {
-    sku: 'Premium'
-    publicNetworkAccess: 'Disabled'
-  }
   secretVault: {
     sku: 'standard'
     publicNetworkAccess: 'Disabled'

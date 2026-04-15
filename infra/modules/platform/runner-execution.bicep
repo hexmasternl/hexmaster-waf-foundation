@@ -18,8 +18,11 @@ param runnerExecutionIdentityName string
 @description('Name of the runner registry identity used for ACR pulls.')
 param runnerRegistryIdentityName string
 
-@description('Name of the central Azure Container Registry in this resource group.')
+@description('Name of the central Azure Container Registry.')
 param containerRegistryName string
+
+@description('Resource group containing the existing central Azure Container Registry.')
+param containerRegistryResourceGroupName string
 
 @description('Name of the shared platform Key Vault in this resource group.')
 param keyVaultName string
@@ -60,6 +63,7 @@ var runnerImage = '${containerRegistry.properties.loginServer}/${runnerExecution
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' existing = {
   name: containerRegistryName
+  scope: resourceGroup(subscription().subscriptionId, containerRegistryResourceGroupName)
 }
 
 resource platformKeyVault 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
