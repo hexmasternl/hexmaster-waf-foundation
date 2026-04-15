@@ -311,6 +311,10 @@ output runnerPlatform object = {
       defaultHostname: deployRunnerPool ? runnerAutoscaler!.properties.defaultHostName : null
       webhookUrl: deployRunnerPool ? 'https://${runnerAutoscaler!.properties.defaultHostName}/api/workflow-job-webhook' : null
     }
+    storageAccount: {
+      name: deployRunnerPool ? autoscalerStorage!.name : null
+      resourceId: deployRunnerPool ? autoscalerStorage!.id : null
+    }
     scalingModel: [
       'The autoscaler reacts to GitHub workflow_job webhook events.'
       'Queued jobs increase VMSS capacity one runner at a time up to the configured maximum.'
