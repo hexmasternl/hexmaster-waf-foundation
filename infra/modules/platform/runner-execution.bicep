@@ -41,7 +41,7 @@ param runnerExecutionConfig object = {
   osDiskSizeGb: 64
   adminUsername: 'runneradmin'
   adminPublicKey: ''
-  minRunners: 0
+  minRunners: 1
   maxRunners: 10
   githubPatSecretName: 'github-actions-pat'
   githubWebhookSecretName: 'github-webhook-secret'
@@ -318,7 +318,7 @@ output runnerPlatform object = {
     scalingModel: [
       'The autoscaler reacts to GitHub workflow_job webhook events.'
       'Queued jobs increase VMSS capacity one runner at a time up to the configured maximum.'
-      'Completed jobs scale the VMSS back to zero once no matching runners remain busy.'
+      'Completed jobs scale the VMSS back to the configured minimum once no matching runners remain busy.'
     ]
   }
   secretHandlingModel: [
@@ -328,7 +328,7 @@ output runnerPlatform object = {
   ]
   platformConstraints: [
     'Register runners at the GitHub organization scope and keep them in the HexMaster Landingzone runner group.'
-    'VMSS capacity defaults to zero and is expected to be driven by workflow_job webhook activity.'
+    'VMSS capacity defaults to one warm runner and is expected to scale with workflow_job webhook activity.'
     'Linux runners install Docker so workflows can use container actions and service containers.'
   ]
 }

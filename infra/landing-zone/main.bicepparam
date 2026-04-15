@@ -83,7 +83,7 @@ param runnerExecutionConfig = {
   osDiskSizeGb: 64
   adminUsername: 'runneradmin'
   adminPublicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFillInYourPublicKeyBeforeDeployment runneradmin@example'
-  minRunners: 0
+  minRunners: 1
   maxRunners: 10
   githubPatSecretName: 'github-actions-pat'
   githubWebhookSecretName: 'github-webhook-secret'
