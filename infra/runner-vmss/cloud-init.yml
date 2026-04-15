@@ -1,0 +1,99 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+packages:
+  - ca-certificates
+  - curl
+  - docker.io
+  - git
+  - jq
+  - libicu70
+  - libssl3
+  - unzip
+  - zip
+
+users:
+  - default
+  - name: runner
+    groups:
+      - docker
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+
+write_files:
+  - path: /opt/github-runner/start-runner.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      RUNNER_HOME="/home/runner/actions-runner"
+      RUNNER_VERSION="__RUNNER_VERSION__"
+      GITHUB_URL="__GITHUB_URL__"
+      RUNNER_GROUP="__RUNNER_GROUP__"
+      RUNNER_LABELS="__RUNNER_LABELS__"
+      KEY_VAULT_URI="__KEY_VAULT_URI__"
+      GITHUB_PAT_SECRET_NAME="__GITHUB_PAT_SECRET_NAME__"
+      REGISTRATION_TOKEN_API_URL="__REGISTRATION_TOKEN_API_URL__"
+
+      mkdir -p "$RUNNER_HOME"
+      chown -R runner:runner "$RUNNER_HOME"
+
+      if [ ! -f "$RUNNER_HOME/config.sh" ]; then
+        archive_name="actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
+        runner_url="https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/${archive_name}"
+        su - runner -c "cd \"$RUNNER_HOME\" && curl -fsSL \"$runner_url\" -o \"$archive_name\" && tar xzf \"$archive_name\" && rm -f \"$archive_name\""
+        bash "$RUNNER_HOME/bin/installdependencies.sh"
+      fi
+
+      token_response=$(curl -fsSL -H Metadata:true "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://vault.azure.net")
+      key_vault_token=$(echo "$token_response" | jq -r '.access_token')
+      github_pat=$(curl -fsSL -H "Authorization: Bearer ${key_vault_token}" "${KEY_VAULT_URI}secrets/${GITHUB_PAT_SECRET_NAME}?api-version=7.4" | jq -r '.value')
+
+      if [ -z "$github_pat" ] || [ "$github_pat" = "null" ]; then
+        echo "Failed to resolve GitHub PAT from Key Vault."
+        exit 1
+      fi
+
+      registration_token=$(curl -fsSL -X POST \
+        -H "Authorization: token ${github_pat}" \
+        -H "Accept: application/vnd.github+json" \
+        "${REGISTRATION_TOKEN_API_URL}" | jq -r '.token')
+
+      if [ -z "$registration_token" ] || [ "$registration_token" = "null" ]; then
+        echo "Failed to obtain a GitHub runner registration token."
+        exit 1
+      fi
+
+      rm -f \
+        "$RUNNER_HOME/.runner" \
+        "$RUNNER_HOME/.credentials" \
+        "$RUNNER_HOME/.credentials_rsaparams" \
+        "$RUNNER_HOME/.env"
+
+      su - runner -c "cd \"$RUNNER_HOME\" && ./config.sh --url \"$GITHUB_URL\" --token \"$registration_token\" --runnergroup \"$RUNNER_GROUP\" --labels \"$RUNNER_LABELS\" --name \"vmss-$(hostname)\" --work _work --unattended --ephemeral --replace"
+      exec su - runner -c "cd \"$RUNNER_HOME\" && ./run.sh"
+
+  - path: /etc/systemd/system/github-runner.service
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Unit]
+      Description=GitHub Actions VMSS runner
+      Wants=network-online.target docker.service
+      After=network-online.target docker.service
+
+      [Service]
+      Type=simple
+      ExecStart=/opt/github-runner/start-runner.sh
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl enable --now docker
+  - systemctl daemon-reload
+  - systemctl enable --now github-runner.service
