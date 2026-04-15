@@ -3,14 +3,12 @@
     "microsoft-learn": {
       "type": "http",
       "url": "https://learn.microsoft.com/api/mcp"
+    },
+
+    "Bicep": {
+      "type": "stdio",
+      "command": "dnx",
+      "args": ["-y", "Azure.Bicep.McpServer"]
     }
-  },
-  "Bicep": {
-  "type": "stdio",
-  "command": "dnx",
-  "args": [
-    "-y",
-    "Azure.Bicep.McpServer"
-  ]
-}
+  }
 }
