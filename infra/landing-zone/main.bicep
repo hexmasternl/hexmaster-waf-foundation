@@ -95,10 +95,11 @@ param runnerExecutionConfig object = {
   imageRepository: 'github-actions-runner'
   imageTag: 'latest'
   githubApiUrl: 'https://api.github.com'
-  githubUrl: ''
-  runnerScope: 'repo'
-  owner: ''
+  githubUrl: 'https://github.com/hexmasternl'
+  runnerScope: 'org'
+  owner: 'hexmasternl'
   repositories: []
+  runnerGroup: 'HexMaster Landingzone'
   targetWorkflowQueueLength: 1
   minExecutions: 0
   maxExecutions: 5
@@ -111,7 +112,9 @@ param runnerExecutionConfig object = {
   memory: '4Gi'
   githubPatSecretName: 'github-actions-pat'
   githubPatSecretUri: ''
-  registrationTokenApiUrl: ''
+  runnerDeploymentTokenSecretName: 'runner-deployment-token'
+  runnerDeploymentTokenSecretUri: ''
+  registrationTokenApiUrl: 'https://api.github.com/orgs/hexmasternl/actions/runners/registration-token'
 }
 
 @description('Optional workload spoke definitions. Each spoke must use non-overlapping prefixes carved from hubNetworkConfig.futureSpokeSupernet and reserve room for workload, private endpoint, and future growth subnets.')

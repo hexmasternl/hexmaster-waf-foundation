@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "9306312414141243868"
+      "templateHash": "14083618335960753702"
     }
   },
   "parameters": {
@@ -137,10 +137,11 @@
         "imageRepository": "github-actions-runner",
         "imageTag": "latest",
         "githubApiUrl": "https://api.github.com",
-        "githubUrl": "",
-        "runnerScope": "repo",
-        "owner": "",
+        "githubUrl": "https://github.com/hexmasternl",
+        "runnerScope": "org",
+        "owner": "hexmasternl",
         "repositories": [],
+        "runnerGroup": "HexMaster Landingzone",
         "targetWorkflowQueueLength": 1,
         "minExecutions": 0,
         "maxExecutions": 5,
@@ -153,7 +154,9 @@
         "memory": "4Gi",
         "githubPatSecretName": "github-actions-pat",
         "githubPatSecretUri": "",
-        "registrationTokenApiUrl": ""
+        "runnerDeploymentTokenSecretName": "runner-deployment-token",
+        "runnerDeploymentTokenSecretUri": "",
+        "registrationTokenApiUrl": "https://api.github.com/orgs/hexmasternl/actions/runners/registration-token"
       },
       "metadata": {
         "description": "Runner execution platform configuration for the shared Container Apps environment and GitHub runner job."
@@ -2058,7 +2061,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "4064307284126873382"
+              "templateHash": "9956401432117662971"
             }
           },
           "parameters": {
@@ -2124,10 +2127,11 @@
                 "imageRepository": "github-actions-runner",
                 "imageTag": "latest",
                 "githubApiUrl": "https://api.github.com",
-                "githubUrl": "",
-                "runnerScope": "repo",
-                "owner": "",
+                "githubUrl": "https://github.com/hexmasternl",
+                "runnerScope": "org",
+                "owner": "hexmasternl",
                 "repositories": [],
+                "runnerGroup": "HexMaster Landingzone",
                 "targetWorkflowQueueLength": 1,
                 "minExecutions": 0,
                 "maxExecutions": 5,
@@ -2140,7 +2144,9 @@
                 "memory": "4Gi",
                 "githubPatSecretName": "github-actions-pat",
                 "githubPatSecretUri": "",
-                "registrationTokenApiUrl": ""
+                "runnerDeploymentTokenSecretName": "runner-deployment-token",
+                "runnerDeploymentTokenSecretUri": "",
+                "registrationTokenApiUrl": "https://api.github.com/orgs/hexmasternl/actions/runners/registration-token"
               },
               "metadata": {
                 "description": "Runner execution configuration for the Container Apps environment and GitHub runner job."
@@ -2150,7 +2156,7 @@
           "variables": {
             "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
             "keyVaultSecretsUserRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
-            "deployRunnerJob": "[and(and(and(parameters('runnerExecutionConfig').deployRunnerJob, not(empty(parameters('runnerExecutionConfig').githubUrl))), not(empty(parameters('runnerExecutionConfig').registrationTokenApiUrl))), not(empty(parameters('runnerExecutionConfig').githubPatSecretUri)))]"
+            "deployRunnerJob": "[and(and(and(and(parameters('runnerExecutionConfig').deployRunnerJob, not(empty(parameters('runnerExecutionConfig').githubUrl))), not(empty(parameters('runnerExecutionConfig').registrationTokenApiUrl))), not(empty(parameters('runnerExecutionConfig').githubPatSecretUri))), not(empty(parameters('runnerExecutionConfig').runnerDeploymentTokenSecretUri)))]"
           },
           "resources": [
             {
@@ -2239,6 +2245,11 @@
                       "name": "[parameters('runnerExecutionConfig').githubPatSecretName]",
                       "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName'))]",
                       "keyVaultUrl": "[parameters('runnerExecutionConfig').githubPatSecretUri]"
+                    },
+                    {
+                      "name": "[parameters('runnerExecutionConfig').runnerDeploymentTokenSecretName]",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('runnerExecutionIdentityName'))]",
+                      "keyVaultUrl": "[parameters('runnerExecutionConfig').runnerDeploymentTokenSecretUri]"
                     }
                   ],
                   "eventTriggerConfig": {
@@ -2281,8 +2292,16 @@
                           "secretRef": "[parameters('runnerExecutionConfig').githubPatSecretName]"
                         },
                         {
+                          "name": "RUNNER_DEPLOYMENT_TOKEN",
+                          "secretRef": "[parameters('runnerExecutionConfig').runnerDeploymentTokenSecretName]"
+                        },
+                        {
                           "name": "GH_URL",
                           "value": "[parameters('runnerExecutionConfig').githubUrl]"
+                        },
+                        {
+                          "name": "RUNNER_GROUP",
+                          "value": "[parameters('runnerExecutionConfig').runnerGroup]"
                         },
                         {
                           "name": "REGISTRATION_TOKEN_API_URL",
@@ -2343,18 +2362,26 @@
                   "triggerType": "Event",
                   "image": "[format('{0}/{1}:{2}', reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2025-04-01').loginServer, parameters('runnerExecutionConfig').imageRepository, parameters('runnerExecutionConfig').imageTag)]",
                   "githubApiUrl": "[parameters('runnerExecutionConfig').githubApiUrl]",
+                  "githubUrl": "[parameters('runnerExecutionConfig').githubUrl]",
+                  "runnerScope": "[parameters('runnerExecutionConfig').runnerScope]",
+                  "runnerOwner": "[parameters('runnerExecutionConfig').owner]",
+                  "runnerGroup": "[parameters('runnerExecutionConfig').runnerGroup]",
                   "privateConnectivity": [
                     "Runner executions start inside the hub-integrated Container Apps environment and resolve shared services through hub-linked private DNS zones.",
                     "Image pulls use the dedicated registry identity against the private central ACR, and secret retrieval uses Key Vault over private endpoint connectivity."
                   ],
                   "secretHandlingModel": [
-                    "The job references a Key Vault secret URI for the GitHub PAT instead of storing PAT values in the template or repository.",
+                    "The job references a Key Vault secret URI for the GitHub PAT used by the Container Apps GitHub scaler instead of storing PAT values in the template or repository.",
+                    "The runner bootstrap token is provided through a separate Key Vault secret so the config.sh registration experience can target the GitHub organization runner group without reusing the scaler PAT.",
                     "Only the runner execution identity receives Key Vault secret access; operators and future workload identities remain separate."
                   ],
                   "platformConstraints": [
+                    "Register runners at the GitHub organization scope and keep them in the HexMaster Landingzone runner group.",
                     "Use this runner platform only for private repositories.",
                     "Container Apps jobs do not support Docker-in-Docker workflows."
-                  ]
+                  ],
+                  "bootstrapCommand": "./config.sh --url https://github.com/hexmasternl --runnergroup \"HexMaster Landingzone\" --token {{organizationsecret.RUNNER_DEPLOYMENT_TOKEN}}",
+                  "startCommand": "./run.sh"
                 }
               }
             }

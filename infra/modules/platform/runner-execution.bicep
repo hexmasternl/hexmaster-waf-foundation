@@ -33,10 +33,11 @@ param runnerExecutionConfig object = {
   imageRepository: 'github-actions-runner'
   imageTag: 'latest'
   githubApiUrl: 'https://api.github.com'
-  githubUrl: ''
-  runnerScope: 'repo'
-  owner: ''
+  githubUrl: 'https://github.com/hexmasternl'
+  runnerScope: 'org'
+  owner: 'hexmasternl'
   repositories: []
+  runnerGroup: 'HexMaster Landingzone'
   targetWorkflowQueueLength: 1
   minExecutions: 0
   maxExecutions: 5
@@ -49,12 +50,14 @@ param runnerExecutionConfig object = {
   memory: '4Gi'
   githubPatSecretName: 'github-actions-pat'
   githubPatSecretUri: ''
-  registrationTokenApiUrl: ''
+  runnerDeploymentTokenSecretName: 'runner-deployment-token'
+  runnerDeploymentTokenSecretUri: ''
+  registrationTokenApiUrl: 'https://api.github.com/orgs/hexmasternl/actions/runners/registration-token'
 }
 
 var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
-var deployRunnerJob = runnerExecutionConfig.deployRunnerJob && !empty(runnerExecutionConfig.githubUrl) && !empty(runnerExecutionConfig.registrationTokenApiUrl) && !empty(runnerExecutionConfig.githubPatSecretUri)
+var deployRunnerJob = runnerExecutionConfig.deployRunnerJob && !empty(runnerExecutionConfig.githubUrl) && !empty(runnerExecutionConfig.registrationTokenApiUrl) && !empty(runnerExecutionConfig.githubPatSecretUri) && !empty(runnerExecutionConfig.runnerDeploymentTokenSecretUri)
 var runnerImage = '${containerRegistry.properties.loginServer}/${runnerExecutionConfig.imageRepository}:${runnerExecutionConfig.imageTag}'
 
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' existing = {
@@ -138,6 +141,11 @@ resource githubRunnerJob 'Microsoft.App/jobs@2025-01-01' = if (deployRunnerJob) 
           identity: runnerExecutionIdentity.id
           keyVaultUrl: runnerExecutionConfig.githubPatSecretUri
         }
+        {
+          name: runnerExecutionConfig.runnerDeploymentTokenSecretName
+          identity: runnerExecutionIdentity.id
+          keyVaultUrl: runnerExecutionConfig.runnerDeploymentTokenSecretUri
+        }
       ]
       eventTriggerConfig: {
         parallelism: runnerExecutionConfig.parallelism
@@ -150,11 +158,11 @@ resource githubRunnerJob 'Microsoft.App/jobs@2025-01-01' = if (deployRunnerJob) 
             {
               name: 'github-runner'
               type: 'github-runner'
-              metadata: {
-                githubAPIURL: runnerExecutionConfig.githubApiUrl
-                owner: runnerExecutionConfig.owner
-                runnerScope: runnerExecutionConfig.runnerScope
-                repos: join(runnerExecutionConfig.repositories, ',')
+                metadata: {
+                  githubAPIURL: runnerExecutionConfig.githubApiUrl
+                  owner: runnerExecutionConfig.owner
+                  runnerScope: runnerExecutionConfig.runnerScope
+                  repos: join(runnerExecutionConfig.repositories, ',')
                 targetWorkflowQueueLength: string(runnerExecutionConfig.targetWorkflowQueueLength)
               }
               auth: [
@@ -179,8 +187,16 @@ resource githubRunnerJob 'Microsoft.App/jobs@2025-01-01' = if (deployRunnerJob) 
               secretRef: runnerExecutionConfig.githubPatSecretName
             }
             {
+              name: 'RUNNER_DEPLOYMENT_TOKEN'
+              secretRef: runnerExecutionConfig.runnerDeploymentTokenSecretName
+            }
+            {
               name: 'GH_URL'
               value: runnerExecutionConfig.githubUrl
+            }
+            {
+              name: 'RUNNER_GROUP'
+              value: runnerExecutionConfig.runnerGroup
             }
             {
               name: 'REGISTRATION_TOKEN_API_URL'
@@ -233,17 +249,25 @@ output runnerPlatform object = {
     triggerType: 'Event'
     image: runnerImage
     githubApiUrl: runnerExecutionConfig.githubApiUrl
+    githubUrl: runnerExecutionConfig.githubUrl
+    runnerScope: runnerExecutionConfig.runnerScope
+    runnerOwner: runnerExecutionConfig.owner
+    runnerGroup: runnerExecutionConfig.runnerGroup
     privateConnectivity: [
       'Runner executions start inside the hub-integrated Container Apps environment and resolve shared services through hub-linked private DNS zones.'
       'Image pulls use the dedicated registry identity against the private central ACR, and secret retrieval uses Key Vault over private endpoint connectivity.'
     ]
     secretHandlingModel: [
-      'The job references a Key Vault secret URI for the GitHub PAT instead of storing PAT values in the template or repository.'
+      'The job references a Key Vault secret URI for the GitHub PAT used by the Container Apps GitHub scaler instead of storing PAT values in the template or repository.'
+      'The runner bootstrap token is provided through a separate Key Vault secret so the config.sh registration experience can target the GitHub organization runner group without reusing the scaler PAT.'
       'Only the runner execution identity receives Key Vault secret access; operators and future workload identities remain separate.'
     ]
     platformConstraints: [
+      'Register runners at the GitHub organization scope and keep them in the HexMaster Landingzone runner group.'
       'Use this runner platform only for private repositories.'
       'Container Apps jobs do not support Docker-in-Docker workflows.'
     ]
+    bootstrapCommand: './config.sh --url https://github.com/hexmasternl --runnergroup "HexMaster Landingzone" --token {{organizationsecret.RUNNER_DEPLOYMENT_TOKEN}}'
+    startCommand: './run.sh'
   }
 }

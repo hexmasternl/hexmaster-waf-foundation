@@ -114,5 +114,17 @@ az deployment sub show `
 - Break-glass reachability to spokes depends on hub-spoke peering with **allowGatewayTransit** and **useRemoteGateways**
 - The central ACR and shared Key Vault are deployed into the platform resource group and exposed over private endpoints in the hub
 - Runner jobs use a dedicated Container Apps environment with separate identities for image pull and workload execution
+- The default runner registration target is the GitHub organization `hexmasternl` in the `HexMaster Landingzone` runner group
 - Workload spokes are allocated from the reserved **10.32.0.0/12** supernet and are expected to reserve space for workload, private-endpoint, and future expansion ranges
 - Spoke NSGs allow only approved access to hub **shared-services** and **private-endpoints** prefixes and deny lateral traffic to the wider hub and other spokes
+
+### Runner registration defaults
+
+The landing-zone runner configuration now targets the GitHub organization runner endpoint by default:
+
+```bash
+./config.sh --url https://github.com/hexmasternl --runnergroup "HexMaster Landingzone" --token {{organizationsecret.RUNNER_DEPLOYMENT_TOKEN}}
+./run.sh
+```
+
+Store the Container Apps scaler PAT in the Key Vault secret referenced by `runnerExecutionConfig.githubPatSecretUri`, and store the organization runner registration token in `runnerExecutionConfig.runnerDeploymentTokenSecretUri`.
