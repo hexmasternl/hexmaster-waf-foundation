@@ -19,9 +19,10 @@ permissions:
 jobs:
   test-runner:
     name: Run on VMSS runner
-    runs-on:
-      labels:
-        - self-hosted
+    env:
+      ACTIONS_RUNNER_DEBUG: 'true'
+      ACTIONS_STEP_DEBUG: 'true'
+    runs-on: self-hosted
     timeout-minutes: 15
 
     steps:
@@ -31,17 +32,108 @@ jobs:
       - name: Show runner details
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           echo "Runner name: $RUNNER_NAME"
           echo "Runner OS: $RUNNER_OS"
           echo "Runner arch: $RUNNER_ARCH"
           echo "Repository: $GITHUB_REPOSITORY"
           echo "Ref: $GITHUB_REF"
+          echo "Workspace: $GITHUB_WORKSPACE"
+          echo "Actor: $GITHUB_ACTOR"
+          echo "Event name: $GITHUB_EVENT_NAME"
+          echo "SHA: $GITHUB_SHA"
+
+      - name: Dump GitHub contexts
+        shell: bash
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+          RUNNER_CONTEXT: ${{ toJson(runner) }}
+          JOB_CONTEXT: ${{ toJson(job) }}
+          STRATEGY_CONTEXT: ${{ toJson(strategy) }}
+          MATRIX_CONTEXT: ${{ toJson(matrix) }}
+        run: |
+          set -euxo pipefail
+          echo '--- github context ---'
+          echo "$GITHUB_CONTEXT"
+          echo '--- runner context ---'
+          echo "$RUNNER_CONTEXT"
+          echo '--- job context ---'
+          echo "$JOB_CONTEXT"
+          echo '--- strategy context ---'
+          echo "$STRATEGY_CONTEXT"
+          echo '--- matrix context ---'
+          echo "$MATRIX_CONTEXT"
+
+      - name: Dump environment and workspace
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo '--- environment ---'
+          env | sort
+          echo '--- working directory ---'
+          pwd
+          echo '--- workspace tree ---'
+          find "$GITHUB_WORKSPACE" -maxdepth 3 -mindepth 1 -print | sort
+          echo '--- disk usage ---'
+          df -h
+          echo '--- memory ---'
+          free -h
+          echo '--- mounts ---'
+          mount
+
+      - name: Dump host diagnostics
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo '--- identity ---'
+          id
+          whoami
+          groups
+          echo '--- kernel ---'
+          uname -a
+          cat /etc/os-release
+          echo '--- networking ---'
+          ip addr
+          ip route
+          ss -tulpn || true
+          echo '--- processes ---'
+          ps -ef
+          echo '--- runner service ---'
+          if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl status github-runner.service --no-pager || sudo systemctl list-units --type=service --all --no-pager
+          else
+            echo 'systemctl unavailable'
+          fi
+          echo '--- recent runner journal ---'
+          if command -v journalctl >/dev/null 2>&1; then
+            sudo journalctl -u github-runner.service --no-pager -n 200 || echo 'github-runner.service journal unavailable'
+          else
+            echo 'journalctl unavailable'
+          fi
+
+      - name: Dump toolchain diagnostics
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git --version
+          curl --version
+          jq --version
+          if command -v docker >/dev/null 2>&1; then
+            docker version
+            docker info
+          else
+            echo 'docker unavailable'
+          fi
+          if command -v az >/dev/null 2>&1; then
+            az version
+          else
+            echo 'azure cli unavailable'
+          fi
 
       - name: Print test message
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           echo "${{ github.event.inputs.message }}"
 
       - name: Write summary
@@ -51,4 +143,6 @@ jobs:
           ## Self-hosted runner test
           
           The workflow reached the VMSS runner successfully.
+          
+          Verbose runner, host, environment, and toolchain diagnostics were captured in the job log.
           EOF
