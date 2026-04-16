@@ -21,10 +21,6 @@ jobs:
     name: Run on VMSS runner
     runs-on:
       group: HexMaster Landingzone
-      labels:
-        - self-hosted
-        - vmss
-    timeout-minutes: 15
 
     steps:
       - name: Checkout repository

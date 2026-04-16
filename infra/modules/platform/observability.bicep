@@ -16,6 +16,9 @@ param observabilityConfig object = {
   retentionInDays: 30
   dailyQuotaGb: 1
   logAnalyticsDestinationType: 'Dedicated'
+  runnerVmssGuestTelemetry: {
+    enabled: true
+  }
 }
 
 @description('Name of the shared platform Key Vault.')
@@ -23,6 +26,9 @@ param keyVaultName string
 
 var observabilityEnabled = observabilityConfig.enabled
 var diagnosticSettingName = 'send-to-log-analytics'
+var runnerVmssGuestTelemetryEnabled = observabilityEnabled && (observabilityConfig.?runnerVmssGuestTelemetry.?enabled ?? true)
+var runnerVmssGuestTelemetryRuleName = take('dcr-${workspaceName}-runner-linux', 64)
+var runnerVmssGuestTelemetryDestinationName = 'runner-linux-workspace'
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' = if (observabilityEnabled) {
   name: workspaceName
@@ -68,6 +74,87 @@ resource keyVaultDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-p
   }
 }
 
+resource runnerVmssGuestTelemetryRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' = if (runnerVmssGuestTelemetryEnabled) {
+  name: runnerVmssGuestTelemetryRuleName
+  location: location
+  kind: 'Linux'
+  tags: tags
+  properties: {
+    description: 'Collect Linux guest logs and telemetry for the GitHub runner VM scale set.'
+    dataSources: {
+      performanceCounters: [
+        {
+          name: 'runnerVmssDetailedMetrics'
+          streams: [
+            'Microsoft-InsightsMetrics'
+          ]
+          samplingFrequencyInSeconds: 60
+          counterSpecifiers: [
+            '\\VmInsights\\DetailedMetrics'
+          ]
+        }
+      ]
+      syslog: [
+        {
+          name: 'runnerVmssSyslogAuth'
+          streams: [
+            'Microsoft-Syslog'
+          ]
+          facilityNames: [
+            'auth'
+            'authpriv'
+          ]
+          logLevels: [
+            'Warning'
+            'Error'
+            'Critical'
+            'Alert'
+            'Emergency'
+          ]
+        }
+        {
+          name: 'runnerVmssSyslogDaemon'
+          streams: [
+            'Microsoft-Syslog'
+          ]
+          facilityNames: [
+            'daemon'
+            'syslog'
+          ]
+          logLevels: [
+            'Info'
+            'Notice'
+            'Warning'
+            'Error'
+            'Critical'
+            'Alert'
+            'Emergency'
+          ]
+        }
+      ]
+    }
+    destinations: {
+      logAnalytics: [
+        {
+          name: runnerVmssGuestTelemetryDestinationName
+          workspaceResourceId: workspace.id
+        }
+      ]
+    }
+    dataFlows: [
+      {
+        streams: [
+          'Microsoft-InsightsMetrics'
+          'Microsoft-Syslog'
+        ]
+        destinations: [
+          runnerVmssGuestTelemetryDestinationName
+        ]
+      }
+    ]
+  }
+}
+
 output workspace object = {
   enabled: observabilityEnabled
   name: observabilityEnabled ? workspace.name : ''
@@ -80,4 +167,10 @@ output lowCostDefaults object = {
   retentionInDays: observabilityEnabled ? observabilityConfig.retentionInDays : 0
   dailyQuotaGb: observabilityEnabled ? observabilityConfig.dailyQuotaGb : 0
   logAnalyticsDestinationType: observabilityEnabled ? observabilityConfig.logAnalyticsDestinationType : ''
+}
+
+output runnerVmssGuestTelemetry object = {
+  enabled: runnerVmssGuestTelemetryEnabled
+  dataCollectionRuleName: runnerVmssGuestTelemetryEnabled ? runnerVmssGuestTelemetryRule.name : ''
+  dataCollectionRuleId: runnerVmssGuestTelemetryEnabled ? runnerVmssGuestTelemetryRule.id : ''
 }

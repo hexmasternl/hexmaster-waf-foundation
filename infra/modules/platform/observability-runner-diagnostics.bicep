@@ -12,6 +12,8 @@ param observabilityConfig object = {
 @description('Runner resources that should send diagnostics to the shared workspace.')
 param runnerDiagnostics object
 
+var runnerVmssGuestTelemetryEnabled = observabilityConfig.enabled && !empty(runnerDiagnostics.?guestTelemetryDataCollectionRuleId ?? '')
+
 var diagnosticSettingName = 'send-to-log-analytics'
 
 resource runnerFunctionApp 'Microsoft.Web/sites@2024-11-01' existing = {
@@ -58,6 +60,38 @@ resource runnerVmScaleSetDiagnostics 'Microsoft.Insights/diagnosticSettings@2021
       }
     ]
   }
+}
+
+resource runnerVmScaleSetAzureMonitorAgent 'Microsoft.Compute/virtualMachineScaleSets/extensions@2024-11-01' = if (runnerVmssGuestTelemetryEnabled) {
+  parent: runnerVmScaleSet
+  name: 'AzureMonitorLinuxAgent'
+  properties: {
+    publisher: 'Microsoft.Azure.Monitor'
+    type: 'AzureMonitorLinuxAgent'
+    typeHandlerVersion: '1.0'
+    autoUpgradeMinorVersion: true
+    enableAutomaticUpgrade: true
+    settings: {
+      authentication: {
+        managedIdentity: {
+          'identifier-name': 'mi_res_id'
+          'identifier-value': runnerDiagnostics.executionIdentityResourceId
+        }
+      }
+    }
+  }
+}
+
+resource runnerVmScaleSetGuestTelemetryAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = if (runnerVmssGuestTelemetryEnabled) {
+  name: 'runner-vmss-linux-guest'
+  scope: runnerVmScaleSet
+  properties: {
+    description: 'Associate the Linux guest telemetry data collection rule with the runner VM scale set.'
+    dataCollectionRuleId: runnerDiagnostics.guestTelemetryDataCollectionRuleId
+  }
+  dependsOn: [
+    runnerVmScaleSetAzureMonitorAgent
+  ]
 }
 
 resource autoscalerStorageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' existing = {

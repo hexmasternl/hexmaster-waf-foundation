@@ -120,6 +120,9 @@ param observabilityConfig object = {
   retentionInDays: 30
   dailyQuotaGb: 1
   logAnalyticsDestinationType: 'Dedicated'
+  runnerVmssGuestTelemetry: {
+    enabled: true
+  }
 }
 
 @description('Optional workload spoke definitions. Each spoke must use non-overlapping prefixes carved from hubNetworkConfig.futureSpokeSupernet and reserve room for workload, private endpoint, and future growth subnets.')
@@ -359,6 +362,8 @@ module observabilityRunnerDiagnostics '../modules/platform/observability-runner-
       vmScaleSetName: runnerExecution.outputs.runnerPlatform.vmScaleSet.name
       functionAppName: runnerExecution.outputs.runnerPlatform.autoscaler.functionApp.name
       autoscalerStorageAccountName: runnerExecution.outputs.runnerPlatform.autoscaler.storageAccount.name
+      executionIdentityResourceId: runnerExecution.outputs.runnerPlatform.identities.execution.resourceId
+      guestTelemetryDataCollectionRuleId: observability.outputs.runnerVmssGuestTelemetry.dataCollectionRuleId
     }
   }
 }
@@ -422,12 +427,14 @@ output observabilityBaseline object = {
   ], runnerPoolEnabled ? [
     'Runner Function App'
     'Runner VM scale set metrics'
+    'Runner VM scale set guest logs and telemetry'
     'Runner autoscaler storage account services'
   ] : []) : []
   operatorNotes: observabilityConfig.enabled ? [
     'Use the shared workspace for recent platform diagnostics during deployment verification and break-glass investigation.'
     'The baseline is intentionally limited to foundational shared-platform resources and does not onboard workload spokes by default.'
     'Runner diagnostics are only enabled when the runner pool is deployed with a real admin SSH key.'
+    'The runner VM scale set uses Azure Monitor Agent plus a Linux data collection rule to send guest syslog and detailed metrics to the shared workspace.'
   ] : [
     'Minimal observability is disabled for this deployment.'
   ]

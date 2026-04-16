@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "13655874070054612215"
+      "templateHash": "10293971608424505659"
     }
   },
   "parameters": {
@@ -168,7 +168,10 @@
         "workspaceSku": "PerGB2018",
         "retentionInDays": 30,
         "dailyQuotaGb": 1,
-        "logAnalyticsDestinationType": "Dedicated"
+        "logAnalyticsDestinationType": "Dedicated",
+        "runnerVmssGuestTelemetry": {
+          "enabled": true
+        }
       },
       "metadata": {
         "description": "Minimal observability baseline configuration for the shared Log Analytics workspace and foundational diagnostics."
@@ -2488,7 +2491,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "16702766985121561365"
+              "templateHash": "16156262949209091711"
             }
           },
           "parameters": {
@@ -2518,7 +2521,10 @@
                 "workspaceSku": "PerGB2018",
                 "retentionInDays": 30,
                 "dailyQuotaGb": 1,
-                "logAnalyticsDestinationType": "Dedicated"
+                "logAnalyticsDestinationType": "Dedicated",
+                "runnerVmssGuestTelemetry": {
+                  "enabled": true
+                }
               },
               "metadata": {
                 "description": "Minimal observability baseline configuration."
@@ -2533,7 +2539,10 @@
           },
           "variables": {
             "observabilityEnabled": "[parameters('observabilityConfig').enabled]",
-            "diagnosticSettingName": "send-to-log-analytics"
+            "diagnosticSettingName": "send-to-log-analytics",
+            "runnerVmssGuestTelemetryEnabled": "[and(variables('observabilityEnabled'), coalesce(tryGet(tryGet(parameters('observabilityConfig'), 'runnerVmssGuestTelemetry'), 'enabled'), true()))]",
+            "runnerVmssGuestTelemetryRuleName": "[take(format('dcr-{0}-runner-linux', parameters('workspaceName')), 64)]",
+            "runnerVmssGuestTelemetryDestinationName": "runner-linux-workspace"
           },
           "resources": [
             {
@@ -2581,6 +2590,93 @@
               "dependsOn": [
                 "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
               ]
+            },
+            {
+              "condition": "[variables('runnerVmssGuestTelemetryEnabled')]",
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2023-03-11",
+              "name": "[variables('runnerVmssGuestTelemetryRuleName')]",
+              "location": "[parameters('location')]",
+              "kind": "Linux",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "description": "Collect Linux guest logs and telemetry for the GitHub runner VM scale set.",
+                "dataSources": {
+                  "performanceCounters": [
+                    {
+                      "name": "runnerVmssDetailedMetrics",
+                      "streams": [
+                        "Microsoft-InsightsMetrics"
+                      ],
+                      "samplingFrequencyInSeconds": 60,
+                      "scheduledTransferPeriod": "PT1M",
+                      "counterSpecifiers": [
+                        "\\VmInsights\\DetailedMetrics"
+                      ]
+                    }
+                  ],
+                  "syslog": [
+                    {
+                      "name": "runnerVmssSyslogAuth",
+                      "streams": [
+                        "Microsoft-Syslog"
+                      ],
+                      "facilityNames": [
+                        "auth",
+                        "authpriv"
+                      ],
+                      "logLevels": [
+                        "Warning",
+                        "Error",
+                        "Critical",
+                        "Alert",
+                        "Emergency"
+                      ]
+                    },
+                    {
+                      "name": "runnerVmssSyslogDaemon",
+                      "streams": [
+                        "Microsoft-Syslog"
+                      ],
+                      "facilityNames": [
+                        "daemon",
+                        "syslog"
+                      ],
+                      "logLevels": [
+                        "Info",
+                        "Notice",
+                        "Warning",
+                        "Error",
+                        "Critical",
+                        "Alert",
+                        "Emergency"
+                      ]
+                    }
+                  ]
+                },
+                "destinations": {
+                  "logAnalytics": [
+                    {
+                      "name": "[variables('runnerVmssGuestTelemetryDestinationName')]",
+                      "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
+                    }
+                  ]
+                },
+                "dataFlows": [
+                  {
+                    "streams": [
+                      "Microsoft-InsightsMetrics",
+                      "Microsoft-Syslog"
+                    ],
+                    "destinations": [
+                      "[variables('runnerVmssGuestTelemetryDestinationName')]"
+                    ]
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
+              ]
             }
           ],
           "outputs": {
@@ -2600,6 +2696,14 @@
                 "retentionInDays": "[if(variables('observabilityEnabled'), parameters('observabilityConfig').retentionInDays, 0)]",
                 "dailyQuotaGb": "[if(variables('observabilityEnabled'), parameters('observabilityConfig').dailyQuotaGb, 0)]",
                 "logAnalyticsDestinationType": "[if(variables('observabilityEnabled'), parameters('observabilityConfig').logAnalyticsDestinationType, '')]"
+              }
+            },
+            "runnerVmssGuestTelemetry": {
+              "type": "object",
+              "value": {
+                "enabled": "[variables('runnerVmssGuestTelemetryEnabled')]",
+                "dataCollectionRuleName": "[if(variables('runnerVmssGuestTelemetryEnabled'), variables('runnerVmssGuestTelemetryRuleName'), '')]",
+                "dataCollectionRuleId": "[if(variables('runnerVmssGuestTelemetryEnabled'), resourceId('Microsoft.Insights/dataCollectionRules', variables('runnerVmssGuestTelemetryRuleName')), '')]"
               }
             }
           }
@@ -2733,7 +2837,9 @@
             "value": {
               "vmScaleSetName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.vmScaleSet.name]",
               "functionAppName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.autoscaler.functionApp.name]",
-              "autoscalerStorageAccountName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.autoscaler.storageAccount.name]"
+              "autoscalerStorageAccountName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.autoscaler.storageAccount.name]",
+              "executionIdentityResourceId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.identities.execution.resourceId]",
+              "guestTelemetryDataCollectionRuleId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.runnerVmssGuestTelemetry.value.dataCollectionRuleId]"
             }
           }
         },
@@ -2744,7 +2850,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "4863206692141967024"
+              "templateHash": "16012763989648475650"
             }
           },
           "parameters": {
@@ -2772,6 +2878,7 @@
             }
           },
           "variables": {
+            "runnerVmssGuestTelemetryEnabled": "[and(parameters('observabilityConfig').enabled, not(empty(coalesce(tryGet(parameters('runnerDiagnostics'), 'guestTelemetryDataCollectionRuleId'), ''))))]",
             "diagnosticSettingName": "send-to-log-analytics"
           },
           "resources": [
@@ -2814,6 +2921,41 @@
                   }
                 ]
               }
+            },
+            {
+              "condition": "[variables('runnerVmssGuestTelemetryEnabled')]",
+              "type": "Microsoft.Compute/virtualMachineScaleSets/extensions",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('runnerDiagnostics').vmScaleSetName, 'AzureMonitorLinuxAgent')]",
+              "properties": {
+                "publisher": "Microsoft.Azure.Monitor",
+                "type": "AzureMonitorLinuxAgent",
+                "typeHandlerVersion": "1.0",
+                "autoUpgradeMinorVersion": true,
+                "enableAutomaticUpgrade": true,
+                "settings": {
+                  "authentication": {
+                    "managedIdentity": {
+                      "identifier-name": "mi_res_id",
+                      "identifier-value": "[parameters('runnerDiagnostics').executionIdentityResourceId]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "condition": "[variables('runnerVmssGuestTelemetryEnabled')]",
+              "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+              "apiVersion": "2024-03-11",
+              "scope": "[format('Microsoft.Compute/virtualMachineScaleSets/{0}', parameters('runnerDiagnostics').vmScaleSetName)]",
+              "name": "runner-vmss-linux-guest",
+              "properties": {
+                "description": "Associate the Linux guest telemetry data collection rule with the runner VM scale set.",
+                "dataCollectionRuleId": "[parameters('runnerDiagnostics').guestTelemetryDataCollectionRuleId]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachineScaleSets/extensions', parameters('runnerDiagnostics').vmScaleSetName, 'AzureMonitorLinuxAgent')]"
+              ]
             },
             {
               "condition": "[parameters('observabilityConfig').enabled]",
@@ -3111,8 +3253,8 @@
         "enabled": "[parameters('observabilityConfig').enabled]",
         "workspace": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value]",
         "lowCostDefaults": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.lowCostDefaults.value]",
-        "coveredResources": "[if(parameters('observabilityConfig').enabled, concat(createArray('Shared Key Vault', 'Point-to-Site VPN gateway'), if(variables('runnerPoolEnabled'), createArray('Runner Function App', 'Runner VM scale set metrics', 'Runner autoscaler storage account services'), createArray())), createArray())]",
-        "operatorNotes": "[if(parameters('observabilityConfig').enabled, createArray('Use the shared workspace for recent platform diagnostics during deployment verification and break-glass investigation.', 'The baseline is intentionally limited to foundational shared-platform resources and does not onboard workload spokes by default.', 'Runner diagnostics are only enabled when the runner pool is deployed with a real admin SSH key.'), createArray('Minimal observability is disabled for this deployment.'))]"
+        "coveredResources": "[if(parameters('observabilityConfig').enabled, concat(createArray('Shared Key Vault', 'Point-to-Site VPN gateway'), if(variables('runnerPoolEnabled'), createArray('Runner Function App', 'Runner VM scale set metrics', 'Runner VM scale set guest logs and telemetry', 'Runner autoscaler storage account services'), createArray())), createArray())]",
+        "operatorNotes": "[if(parameters('observabilityConfig').enabled, createArray('Use the shared workspace for recent platform diagnostics during deployment verification and break-glass investigation.', 'The baseline is intentionally limited to foundational shared-platform resources and does not onboard workload spokes by default.', 'Runner diagnostics are only enabled when the runner pool is deployed with a real admin SSH key.', 'The runner VM scale set uses Azure Monitor Agent plus a Linux data collection rule to send guest syslog and detailed metrics to the shared workspace.'), createArray('Minimal observability is disabled for this deployment.'))]"
       }
     },
     "workloadSpokeNetworking": {

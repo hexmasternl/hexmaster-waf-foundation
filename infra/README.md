@@ -178,7 +178,7 @@ The landing zone includes a **minimal** shared Log Analytics baseline for founda
 - Shared Key Vault diagnostic logs and metrics
 - Point-to-Site VPN gateway diagnostic logs
 - Runner Function App logs and metrics when the runner pool is deployed
-- Runner VM scale set metrics when the runner pool is deployed
+- Runner VM scale set metrics plus guest Linux syslog and detailed performance telemetry when the runner pool is deployed
 - Runner autoscaler storage account metrics and service logs when the runner pool is deployed
 
 ### Low-cost intent
@@ -206,4 +206,20 @@ AzureMetrics
 | take 50
 ```
 
-4. Use the workspace as recent operational evidence alongside the what-if, deployment, and verification artifacts from the workflow run.
+4. For runner guest telemetry, query the workspace tables populated by Azure Monitor Agent:
+
+```kusto
+Syslog
+| where TimeGenerated > ago(1h)
+| where ProcessName has 'runner' or SyslogMessage has 'github-runner'
+| take 50
+```
+
+```kusto
+InsightsMetrics
+| where TimeGenerated > ago(1h)
+| where Origin == 'vm.azm.ms'
+| take 50
+```
+
+5. Use the workspace as recent operational evidence alongside the what-if, deployment, and verification artifacts from the workflow run.
