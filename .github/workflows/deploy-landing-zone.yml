@@ -231,8 +231,21 @@ jobs:
               az functionapp delete --resource-group "$rg" --name "$func" 2>/dev/null || true
               az appservice plan delete --resource-group "$rg" --name "$plan" --yes 2>/dev/null || true
             else
-              echo "Plan SKU is '${sku:-<absent>}'; no migration cleanup needed."
+              echo "Plan SKU is '${sku:-<absent>}'; no SKU migration needed."
             fi
+            # Sweep orphaned role assignments at the runner-RG scope. ARM blocks
+            # recreating an assignment with the same name but a different
+            # principalId, which happens whenever the function app is recreated
+            # and gets a new SystemAssigned MI. Orphaned assignments have an
+            # empty principalName.
+            echo "Scanning for orphaned role assignments under '$rg'..."
+            while IFS=$'\t' read -r ra_id ra_principal_name; do
+              [[ -z "$ra_id" ]] && continue
+              if [[ -z "$ra_principal_name" || "$ra_principal_name" == "None" ]]; then
+                echo "Deleting orphaned role assignment: $ra_id"
+                az role assignment delete --ids "$ra_id" 2>/dev/null || true
+              fi
+            done < <(az role assignment list --resource-group "$rg" --output tsv --query "[].[id,principalName]" 2>/dev/null || true)
           else
             echo "Resource group '$rg' does not exist yet; nothing to clean up."
           fi
