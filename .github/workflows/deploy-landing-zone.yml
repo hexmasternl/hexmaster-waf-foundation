@@ -372,14 +372,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Flex Consumption requires the OneDeploy endpoint, which `az functionapp deploy`
-          # uses transparently. The legacy `deployment source config-zip` command does not
-          # support FlexConsumption.
-          az functionapp deploy \
+          # On Flex Consumption the OneDeploy endpoint is reached via the
+          # legacy `deployment source config-zip` command (the newer generic
+          # `az functionapp deploy --type zip` returns HTTP 415 against the
+          # FC1 SCM endpoint).
+          az functionapp deployment source config-zip \
             --resource-group "${{ steps.runner.outputs.resource_group }}" \
             --name "${{ steps.runner.outputs.function_app_name }}" \
-            --src-path runner-autoscaler.zip \
-            --type zip \
+            --src runner-autoscaler.zip \
             --timeout 300
           # Restart ensures the new code is picked up and any stale workers are cleared.
           az functionapp restart \
