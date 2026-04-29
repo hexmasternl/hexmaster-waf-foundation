@@ -27,19 +27,46 @@ def _is_valid_signature(body: bytes, signature_header: str) -> bool:
         logging.error(
             "GITHUB_WEBHOOK_SECRET is not resolved. "
             "Signature validation will always fail. "
-            "Ensure the Key Vault secret 'runner-webhook-secret' exists and the "
+            "Ensure the Key Vault secret 'github-webhook-secret' exists and the "
             "Function App identity has 'Key Vault Secrets User' on the vault. "
             "Current value starts with: %s",
             (secret or "")[:30],
         )
         return False
-    expected = "sha256=" + hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+
+    secret_bytes = secret.encode("utf-8")
+    secret_fingerprint = hashlib.sha256(secret_bytes).hexdigest()[:16]
+    expected = "sha256=" + hmac.new(secret_bytes, body, hashlib.sha256).hexdigest()
     match = hmac.compare_digest(expected, signature_header or "")
+
+    logging.info(
+        "Signature check: secret_len=%d secret_sha256_prefix=%s body_len=%d match=%s",
+        len(secret), secret_fingerprint, len(body), match,
+    )
+
     if not match:
         logging.warning(
-            "Signature mismatch. Received header: '%s…' (first 20 chars). "
-            "Ensure the webhook secret in GitHub matches GITHUB_WEBHOOK_SECRET in the Function App.",
-            (signature_header or "")[:20],
+            "SIGNATURE MISMATCH. The HMAC-SHA256 of the request body computed with "
+            "the secret stored in Key Vault does NOT match the X-Hub-Signature-256 "
+            "header GitHub sent.\n"
+            "  Received header:        %s\n"
+            "  Expected (computed):    %s\n"
+            "  Secret length:          %d\n"
+            "  Secret SHA256 prefix:   %s\n"
+            "REMEDIATION: The secret in Key Vault ('github-webhook-secret') and the "
+            "secret configured on the GitHub webhook MUST be identical strings.\n"
+            "1. Compute SHA256 of your RUNNER_WEBHOOK_SECRET value locally:\n"
+            "   echo -n 'YOUR_SECRET' | sha256sum\n"
+            "2. Compare the first 16 chars to '%s' (above).\n"
+            "3. If they differ → Key Vault has a different value than RUNNER_WEBHOOK_SECRET.\n"
+            "4. If they match → GitHub webhook still has the OLD secret. Open the\n"
+            "   GitHub webhook (repo or org Settings → Webhooks → edit) and set its\n"
+            "   Secret field to the same value as RUNNER_WEBHOOK_SECRET.",
+            signature_header or "(missing)",
+            expected,
+            len(secret),
+            secret_fingerprint,
+            secret_fingerprint,
         )
     return match
 

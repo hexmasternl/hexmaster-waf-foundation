@@ -347,19 +347,34 @@ jobs:
           GITHUB_ORG: hexmasternl
           GITHUB_REPO: hexmasternl/hexmaster-waf-foundation
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
           WEBHOOK_HOST=$(python3 -c "import urllib.parse, os; print(urllib.parse.urlparse(os.environ['WEBHOOK_URL']).netloc)")
           echo "Looking for existing webhook with host: $WEBHOOK_HOST"
+
+          # Compute SHA256 fingerprint of the secret for cross-check with the function logs.
+          SECRET_FP=$(printf '%s' "$WEBHOOK_SECRET" | sha256sum | cut -c1-16)
+          SECRET_LEN=${#WEBHOOK_SECRET}
+          echo "RUNNER_WEBHOOK_SECRET length=$SECRET_LEN sha256_prefix=$SECRET_FP"
+          echo "secret_fingerprint=$SECRET_FP" >> "$GITHUB_OUTPUT" || true
+
+          ANY_UPDATED=0
+          ANY_FAILED=0
+          FAIL_REASONS=""
 
           upsert_webhook() {
             local SCOPE="$1"  # "repos/$GITHUB_REPO" or "orgs/$GITHUB_ORG"
             local SCOPE_LABEL="$2"
 
-            LIST_RESULT=$(gh api "${SCOPE}/hooks" 2>&1) || {
-              echo "::warning::Cannot list ${SCOPE_LABEL} webhooks (HTTP error — check PAT scope). Skipping ${SCOPE_LABEL} webhook."
+            LIST_RESULT=$(gh api "${SCOPE}/hooks" 2>&1)
+            LIST_RC=$?
+            if [[ $LIST_RC -ne 0 ]]; then
+              echo "::warning::Cannot list ${SCOPE_LABEL} webhooks (HTTP error). Skipping ${SCOPE_LABEL} webhook."
+              echo "GitHub API response (truncated): $(echo "$LIST_RESULT" | head -c 500)"
+              ANY_FAILED=1
+              FAIL_REASONS="${FAIL_REASONS}- **${SCOPE_LABEL}** webhook: \`$(echo "$LIST_RESULT" | head -c 200)\`\n"
               return 0
-            }
+            fi
 
             EXISTING_ID=$(echo "$LIST_RESULT" | \
               python3 -c "import json,sys,os; hooks=json.load(sys.stdin); host=os.environ['WEBHOOK_HOST']; print(next((str(h['id']) for h in hooks if host in h.get('config',{}).get('url','')), ''))" \
@@ -367,18 +382,24 @@ jobs:
 
             if [[ -n "$EXISTING_ID" ]]; then
               echo "Updating existing ${SCOPE_LABEL} webhook id=$EXISTING_ID → $WEBHOOK_URL"
-              gh api --method PATCH "${SCOPE}/hooks/${EXISTING_ID}" \
+              if gh api --method PATCH "${SCOPE}/hooks/${EXISTING_ID}" \
                 -f "config[url]=$WEBHOOK_URL" \
                 -f "config[content_type]=json" \
                 -f "config[secret]=$WEBHOOK_SECRET" \
                 -f "config[insecure_ssl]=0" \
                 -F "active=true" \
                 -f "events[]=workflow_job" \
-                --silent
-              echo "::notice::${SCOPE_LABEL} webhook updated (id=$EXISTING_ID)."
+                --silent 2>&1; then
+                echo "::notice::${SCOPE_LABEL} webhook updated (id=$EXISTING_ID) — secret synced from RUNNER_WEBHOOK_SECRET."
+                ANY_UPDATED=1
+              else
+                echo "::warning::Failed to PATCH ${SCOPE_LABEL} webhook (id=$EXISTING_ID)."
+                ANY_FAILED=1
+                FAIL_REASONS="${FAIL_REASONS}- **${SCOPE_LABEL}** webhook PATCH failed (PAT likely lacks write scope).\n"
+              fi
             else
               echo "No existing ${SCOPE_LABEL} webhook found — creating → $WEBHOOK_URL"
-              gh api --method POST "${SCOPE}/hooks" \
+              if gh api --method POST "${SCOPE}/hooks" \
                 -f "name=web" \
                 -f "config[url]=$WEBHOOK_URL" \
                 -f "config[content_type]=json" \
@@ -386,17 +407,52 @@ jobs:
                 -f "config[insecure_ssl]=0" \
                 -F "active=true" \
                 -f "events[]=workflow_job" \
-                --silent
-              echo "::notice::${SCOPE_LABEL} webhook created."
+                --silent 2>&1; then
+                echo "::notice::${SCOPE_LABEL} webhook created."
+                ANY_UPDATED=1
+              else
+                echo "::warning::Failed to CREATE ${SCOPE_LABEL} webhook."
+                ANY_FAILED=1
+                FAIL_REASONS="${FAIL_REASONS}- **${SCOPE_LABEL}** webhook CREATE failed (PAT likely lacks write scope).\n"
+              fi
             fi
           }
 
-          # Manage repo-level webhook (requires repo scope on PAT).
+          # Manage repo-level webhook (requires admin:repo_hook scope on PAT).
           upsert_webhook "repos/$GITHUB_REPO" "repo"
 
           # Attempt org-level webhook as well (requires admin:org_hook scope on PAT).
-          # This is skipped with a warning if the PAT lacks the necessary scope.
           upsert_webhook "orgs/$GITHUB_ORG" "org"
+
+          {
+            echo ""
+            echo "## GitHub webhook secret sync"
+            echo ""
+            echo "- RUNNER_WEBHOOK_SECRET length: \`$SECRET_LEN\`"
+            echo "- RUNNER_WEBHOOK_SECRET SHA256 prefix: \`$SECRET_FP\`"
+            echo "- Use this prefix to verify the function is using the same secret. The Function App logs the same prefix on every webhook invocation."
+            echo ""
+            if [[ $ANY_UPDATED -eq 1 ]]; then
+              echo "✅ At least one webhook was successfully updated with the secret."
+            fi
+            if [[ $ANY_FAILED -eq 1 ]]; then
+              echo "⚠️ One or more webhook scopes could not be managed:"
+              echo ""
+              printf '%b' "$FAIL_REASONS"
+              echo ""
+              echo "**Manual remediation (do this if you keep getting 401 'invalid signature' from the Function App):**"
+              echo ""
+              echo "1. Go to https://github.com/$GITHUB_REPO/settings/hooks"
+              echo "2. Open the webhook pointing to \`$WEBHOOK_URL\`"
+              echo "3. Set the **Secret** field to exactly the same value as the \`RUNNER_WEBHOOK_SECRET\` GitHub Actions secret"
+              echo "4. Click *Update webhook*, then redeliver a recent event"
+              echo ""
+              echo "**Or** add \`admin:repo_hook\` scope to the \`ADMIN_ORG_PAT\` PAT and re-run this workflow — the pipeline will then sync the secret automatically on every deploy."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Don't fail the build — webhook scope is optional, but make it loud.
+          exit 0
 
       - name: Write deployment summary
         shell: bash
