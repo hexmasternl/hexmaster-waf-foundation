@@ -344,6 +344,7 @@ jobs:
             -r infra/runner-autoscaler/requirements.txt \
             --target infra/runner-autoscaler/.python_packages/lib/site-packages \
             --platform manylinux_2_28_x86_64 \
+            --platform manylinux2014_x86_64 \
             --python-version 3.11 \
             --implementation cp \
             --abi cp311 \
