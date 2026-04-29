@@ -133,6 +133,7 @@ var hubVnetName = 'vnet-${prefix}-hub-${locationToken}'
 var sharedServicesSubnetName = 'snet-${prefix}-shared-services'
 var privateEndpointsSubnetName = 'snet-${prefix}-private-endpoints'
 var runnerInfrastructureSubnetName = 'snet-${prefix}-runners'
+var runnerAutoscalerIntegrationSubnetName = 'snet-${prefix}-runner-autoscaler'
 var dnsResolverInboundSubnetName = 'snet-${prefix}-dns-inbound'
 var dnsResolverOutboundSubnetName = 'snet-${prefix}-dns-outbound'
 var vpnGatewayPublicIpName = 'pip-${prefix}-vpn-az-${locationToken}'
@@ -195,6 +196,7 @@ module hubNetwork '../modules/connectivity/hub-network.bicep' = {
         sharedServices: sharedServicesSubnetName
         privateEndpoints: privateEndpointsSubnetName
         runnerInfrastructure: runnerInfrastructureSubnetName
+        runnerAutoscalerIntegration: runnerAutoscalerIntegrationSubnetName
         dnsResolverInbound: dnsResolverInboundSubnetName
         dnsResolverOutbound: dnsResolverOutboundSubnetName
       }
@@ -333,6 +335,7 @@ module runnerExecution '../modules/platform/runner-execution.bicep' = {
     keyVaultName: platformKeyVaultName
     keyVaultResourceGroupName: platformResourceGroupName
     infrastructureSubnetId: hubNetwork.outputs.foundation.subnetIds.runnerInfrastructure
+    autoscalerIntegrationSubnetId: hubNetwork.outputs.foundation.subnetIds.runnerAutoscalerIntegration
     runnerExecutionConfig: runnerExecutionConfig
     applicationInsightsConnectionString: observability.outputs.applicationInsights.connectionString
   }

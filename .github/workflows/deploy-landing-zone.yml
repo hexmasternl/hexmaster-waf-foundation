@@ -282,30 +282,27 @@ jobs:
           # conflict that prevents azure.identity (and azure.functions) from loading.
           #
           # --platform / --python-version / --abi flags force pip to download
-          # cp311 manylinux wheels regardless of the runner's Python version (3.12).
-          # Without these flags, pip bundles cpython-312 .so files (e.g.
-          # _cffi_backend.cpython-312-*.so) that Python 3.11 in Azure Functions
-          # cannot load, causing a silent worker hang on every request.
+          # cp311 manylinux wheels regardless of the runner's Python version.
+          # Without these flags, pip bundles wheels built for the runner's CPython,
+          # which the Azure Functions Python 3.11 worker cannot load.
           #
           # --only-binary :all: is required by pip when --platform is specified;
           # all packages in this closure have prebuilt cp311/manylinux wheels so
           # source builds are not needed.
           #
-          # cryptography is pinned in requirements.txt to 41.0.7, the last release
-          # that ships manylinux2014_x86_64 (abi3/glibc >= 2.17) wheels. Without
-          # the pin, pip resolves the wheel built for the runner's glibc (2.35+),
-          # which then fails to load in the Azure Functions container (glibc 2.28).
+          # Flex Consumption Linux base image uses glibc 2.35+, so manylinux_2_28
+          # wheels (cryptography 43.x) load correctly. cryptography is pinned to
+          # 43.0.3 per the Azure Functions Python advisory (Nov 2025).
           pip install \
             -r infra/runner-autoscaler/requirements.txt \
             --target infra/runner-autoscaler/.python_packages/lib/site-packages \
-            --platform manylinux_2_17_x86_64 \
+            --platform manylinux_2_28_x86_64 \
             --python-version 3.11 \
             --implementation cp \
             --abi cp311 \
             --only-binary :all: \
             --quiet
 
-          # Confirm the wheel selected for cryptography is manylinux2014 (not 2_34+).
           echo "=== Native extensions in bundle ==="
           find infra/runner-autoscaler/.python_packages -name "*.so" | sort || true
 
@@ -327,10 +324,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          az functionapp deployment source config-zip \
+          # Flex Consumption requires the OneDeploy endpoint, which `az functionapp deploy`
+          # uses transparently. The legacy `deployment source config-zip` command does not
+          # support FlexConsumption.
+          az functionapp deploy \
             --resource-group "${{ steps.runner.outputs.resource_group }}" \
             --name "${{ steps.runner.outputs.function_app_name }}" \
-            --src runner-autoscaler.zip \
+            --src-path runner-autoscaler.zip \
+            --type zip \
             --timeout 300
           # Restart ensures the new code is picked up and any stale workers are cleared.
           az functionapp restart \

@@ -22,6 +22,7 @@ param hubNetworkConfig = {
     dnsResolverInbound: '10.20.3.0/28'
     dnsResolverOutbound: '10.20.3.16/28'
     runnerInfrastructure: '10.20.4.0/23'
+    runnerAutoscalerIntegration: '10.20.6.0/24'
   }
   reservedAddressPrefixes: {
     futurePlatformDns: '10.20.3.32/27'

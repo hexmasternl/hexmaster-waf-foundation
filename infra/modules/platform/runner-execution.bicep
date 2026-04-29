@@ -24,6 +24,9 @@ param keyVaultResourceGroupName string
 @description('Subnet resource ID used by the runner VM scale set.')
 param infrastructureSubnetId string
 
+@description('Subnet resource ID dedicated to the autoscaler Function App VNet integration. Must be delegated to Microsoft.App/environments.')
+param autoscalerIntegrationSubnetId string
+
 @description('Runner execution configuration for the VM scale set and webhook autoscaler.')
 param runnerExecutionConfig object = {
   deployRunnerPool: false
@@ -52,9 +55,11 @@ param runnerExecutionConfig object = {
 param applicationInsightsConnectionString string = ''
 
 var virtualMachineContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')
+var storageBlobDataOwnerRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
 var deployRunnerPool = runnerExecutionConfig.deployRunnerPool && !empty(runnerExecutionConfig.adminPublicKey)
 var functionPlanName = 'plan-${take(replace(runnerAutoscalerFunctionAppName, '_', '-'), 36)}'
 var storageAccountName = toLower(take('st${uniqueString(resourceGroup().id, runnerAutoscalerFunctionAppName)}', 24))
+var deploymentStorageContainerName = 'app-package-${take(toLower(replace(runnerAutoscalerFunctionAppName, '_', '-')), 50)}'
 var patSecretUri = '${platformKeyVault.properties.vaultUri}secrets/${runnerExecutionConfig.githubPatSecretName}'
 var webhookSecretUri = '${platformKeyVault.properties.vaultUri}secrets/${runnerExecutionConfig.githubWebhookSecretName}'
 var targetRepositories = [for repository in runnerExecutionConfig.repositories: '${runnerExecutionConfig.owner}/${repository}']
@@ -188,17 +193,26 @@ resource autoscalerStorage 'Microsoft.Storage/storageAccounts@2025-01-01' = if (
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
   }
+
+  resource blobServices 'blobServices' = {
+    name: 'default'
+    resource deploymentContainer 'containers' = {
+      name: deploymentStorageContainerName
+      properties: {
+        publicAccess: 'None'
+      }
+    }
+  }
 }
 
 resource autoscalerPlan 'Microsoft.Web/serverfarms@2024-11-01' = if (deployRunnerPool) {
   name: functionPlanName
   location: location
   tags: tags
+  kind: 'functionapp'
   sku: {
-    name: 'Y1'
-    tier: 'Dynamic'
-    size: 'Y1'
-    family: 'Y'
+    tier: 'FlexConsumption'
+    name: 'FC1'
   }
   properties: {
     reserved: true
@@ -217,20 +231,13 @@ resource runnerAutoscaler 'Microsoft.Web/sites@2024-11-01' = if (deployRunnerPoo
     httpsOnly: true
     reserved: true
     serverFarmId: autoscalerPlan.id
+    virtualNetworkSubnetId: autoscalerIntegrationSubnetId
     siteConfig: {
-      linuxFxVersion: 'Python|3.11'
+      minTlsVersion: '1.2'
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
           value: autoscalerStorageConnectionString
-        }
-        {
-          name: 'FUNCTIONS_EXTENSION_VERSION'
-          value: '~4'
-        }
-        {
-          name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: 'python'
         }
         {
           name: 'GITHUB_ORG'
@@ -266,6 +273,35 @@ resource runnerAutoscaler 'Microsoft.Web/sites@2024-11-01' = if (deployRunnerPoo
         }
       ]
     }
+    functionAppConfig: {
+      deployment: {
+        storage: {
+          type: 'blobContainer'
+          value: '${autoscalerStorage!.properties.primaryEndpoints.blob}${deploymentStorageContainerName}'
+          authentication: {
+            type: 'SystemAssignedIdentity'
+          }
+        }
+      }
+      scaleAndConcurrency: {
+        maximumInstanceCount: 40
+        instanceMemoryMB: 2048
+      }
+      runtime: {
+        name: 'python'
+        version: '3.11'
+      }
+    }
+  }
+}
+
+resource runnerAutoscalerStorageBlobOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployRunnerPool) {
+  name: guid(autoscalerStorage!.id, runnerAutoscaler!.id, 'storage-blob-data-owner')
+  scope: autoscalerStorage
+  properties: {
+    roleDefinitionId: storageBlobDataOwnerRoleDefinitionId
+    principalId: runnerAutoscaler!.identity.principalId
+    principalType: 'ServicePrincipal'
   }
 }
 

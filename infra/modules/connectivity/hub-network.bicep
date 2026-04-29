@@ -214,6 +214,30 @@ resource runnerInfrastructureNsg 'Microsoft.Network/networkSecurityGroups@2024-0
   }
 }
 
+resource runnerAutoscalerIntegrationNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: 'nsg-${subnetNames.runnerAutoscalerIntegration}'
+  location: location
+  tags: tags
+  properties: {
+    securityRules: [
+      {
+        name: 'DenyInternetInbound'
+        properties: {
+          description: 'Function App VNet integration subnet only carries outbound traffic from the autoscaler.'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+          access: 'Deny'
+          priority: 4000
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
+}
+
 resource sharedServicesRouteTable 'Microsoft.Network/routeTables@2024-05-01' = {
   name: 'rt-${subnetNames.sharedServices}'
   location: location
@@ -333,6 +357,23 @@ resource hubVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
         }
       }
       {
+        name: subnetNames.runnerAutoscalerIntegration
+        properties: {
+          addressPrefix: subnetPrefixes.runnerAutoscalerIntegration
+          networkSecurityGroup: {
+            id: runnerAutoscalerIntegrationNsg.id
+          }
+          delegations: [
+            {
+              name: 'flex-consumption'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
+        }
+      }
+      {
         name: subnetNames.dnsResolverInbound
         properties: {
           addressPrefix: subnetPrefixes.dnsResolverInbound
@@ -375,6 +416,7 @@ output foundation object = {
     sharedServices: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.sharedServices)
     privateEndpoints: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.privateEndpoints)
     runnerInfrastructure: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.runnerInfrastructure)
+    runnerAutoscalerIntegration: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.runnerAutoscalerIntegration)
     dnsResolverInbound: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.dnsResolverInbound)
     dnsResolverOutbound: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.dnsResolverOutbound)
   }
@@ -387,6 +429,7 @@ output foundation object = {
     sharedServices: sharedServicesNsg.id
     privateEndpoints: privateEndpointsNsg.id
     runnerInfrastructure: runnerInfrastructureNsg.id
+    runnerAutoscalerIntegration: runnerAutoscalerIntegrationNsg.id
     dnsResolverInbound: dnsResolverInboundNsg.id
   }
   natGateway: {
