@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import urllib.request
 
@@ -67,10 +68,15 @@ def github_request(url: str) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
-def list_busy_runners() -> int:
+def list_runners() -> tuple[int, int]:
+    """Return (total_registered, busy_count) for runners carrying the target label.
+
+    A single GitHub API scan is shared by callers that need both values.
+    """
     org = get_github_org()
     label = get_runner_label()
     page = 1
+    total = 0
     busy = 0
 
     while True:
@@ -82,14 +88,22 @@ def list_busy_runners() -> int:
 
         for runner in runners:
             labels = {item.get("name") for item in runner.get("labels", [])}
-            if label in labels and runner.get("busy"):
-                busy += 1
+            if label in labels:
+                total += 1
+                if runner.get("busy"):
+                    busy += 1
 
         if len(runners) < 100:
             break
 
         page += 1
 
+    return total, busy
+
+
+def list_busy_runners() -> int:
+    """Return the number of busy runners with the target label (convenience wrapper)."""
+    _, busy = list_runners()
     return busy
 
 
@@ -108,12 +122,61 @@ def get_current_capacity() -> int:
     return int(model.get("sku", {}).get("capacity", 0))
 
 
+def get_vmss_instance_states() -> dict[str, int]:
+    """Return a breakdown of actual VMSS instance counts by provisioning state.
+
+    Keys: 'total', 'creating', 'succeeded', 'failed', 'other'.
+    Used to detect in-flight bootstrapping instances that have not yet registered
+    as GitHub runners.
+    """
+    resource_id = get_vmss_resource_id()
+    request = urllib.request.Request(
+        f"https://management.azure.com{resource_id}/virtualMachines?api-version={ARM_API_VERSION}",
+        headers=build_management_headers(),
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        data = json.loads(response.read().decode("utf-8"))
+
+    counts: dict[str, int] = {"total": 0, "creating": 0, "succeeded": 0, "failed": 0, "other": 0}
+    for vm in data.get("value", []):
+        state = (vm.get("properties", {}).get("provisioningState") or "").lower()
+        counts["total"] += 1
+        if state == "creating":
+            counts["creating"] += 1
+        elif state == "succeeded":
+            counts["succeeded"] += 1
+        elif state == "failed":
+            counts["failed"] += 1
+        else:
+            counts["other"] += 1
+
+    return counts
+
+
 def set_capacity(desired_capacity: int) -> int:
-    current_capacity = get_current_capacity()
+    """Set the VMSS capacity to *desired_capacity*.
+
+    Fetches the current model to obtain the SKU name and tier so the PATCH
+    includes a complete SKU object (prevents ARM from nulling out those fields).
+    Returns the new capacity after the update (or the unchanged capacity if no
+    PATCH was needed).
+    """
+    model = get_vmss_model()
+    sku = model.get("sku", {})
+    current_capacity = int(sku.get("capacity", 0))
+
     if current_capacity == desired_capacity:
         return current_capacity
 
-    payload = json.dumps({"sku": {"capacity": desired_capacity}}).encode("utf-8")
+    payload = json.dumps(
+        {
+            "sku": {
+                "name": sku.get("name"),
+                "tier": sku.get("tier", "Standard"),
+                "capacity": desired_capacity,
+            }
+        }
+    ).encode("utf-8")
     request = urllib.request.Request(
         f"https://management.azure.com{get_vmss_resource_id()}?api-version={ARM_API_VERSION}",
         data=payload,
@@ -123,6 +186,7 @@ def set_capacity(desired_capacity: int) -> int:
     with urllib.request.urlopen(request, timeout=60):
         pass
 
+    logging.info("VMSS capacity PATCH: %d -> %d (sku=%s)", current_capacity, desired_capacity, sku.get("name"))
     return desired_capacity
 
 

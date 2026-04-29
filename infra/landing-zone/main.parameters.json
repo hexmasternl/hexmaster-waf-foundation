@@ -113,7 +113,10 @@
         "workspaceSku": "PerGB2018",
         "retentionInDays": 30,
         "dailyQuotaGb": 1,
-        "logAnalyticsDestinationType": "Dedicated"
+        "logAnalyticsDestinationType": "Dedicated",
+        "runnerVmssGuestTelemetry": {
+          "enabled": true
+        }
       }
     },
     "workloadSpokes": {
