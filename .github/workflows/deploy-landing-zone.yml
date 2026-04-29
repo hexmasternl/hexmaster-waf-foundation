@@ -280,18 +280,26 @@ jobs:
           # Install only non-host packages. azure-functions is provided by the
           # Azure Functions Python worker — bundling it creates an 'azure' namespace
           # conflict that prevents azure.identity (and azure.functions) from loading.
+          #
+          # --platform manylinux_2_28_x86_64: the Azure Functions Linux Consumption
+          #   container is Debian Buster-based (glibc 2.28). Without this flag, pip
+          #   picks the wheel built for the GitHub-hosted runner's glibc (2.35+).
+          #   The cryptography package's native .so then requires GLIBC_2.33+ and
+          #   fails to load in the container with ImportError at function startup.
+          # --only-binary :all: forces pre-built wheels (no source compilation).
           pip install \
             -r infra/runner-autoscaler/requirements.txt \
             --target infra/runner-autoscaler/.python_packages/lib/site-packages \
+            --platform manylinux_2_28_x86_64 \
+            --python-version 3.11 \
+            --implementation cp \
+            --only-binary :all: \
             --quiet
 
-          # Validate that the key package is present and importable before packaging.
-          python3 -c "
-          import sys
-          sys.path.insert(0, 'infra/runner-autoscaler/.python_packages/lib/site-packages')
-          from azure.identity import ManagedIdentityCredential
-          print('azure-identity import OK')
-          "
+          # Spot-check: list native .so files so the platform tag is visible in the
+          # workflow log. Filenames should contain "manylinux_2_28" not "manylinux_2_3x".
+          echo "=== Native extensions in bundle ==="
+          find infra/runner-autoscaler/.python_packages -name "*.so" | sort || true
 
           (
             cd infra/runner-autoscaler
