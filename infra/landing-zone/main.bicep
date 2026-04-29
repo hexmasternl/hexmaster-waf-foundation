@@ -59,24 +59,7 @@ param hubNetworkConfig object = {
 }
 
 @description('Operator connectivity configuration for the Point-to-Site VPN path.')
-param operatorConnectivityConfig object = {
-  vpnGatewaySku: 'VpnGw1AZ'
-  vpnClientAddressPool: '172.20.250.0/24'
-  entraTenantId: '00000000-0000-0000-0000-000000000000'
-  entraAudience: 'c632b3df-fb67-4d84-bdcf-b95ad541b5c8'
-  breakGlass: {
-    primaryClient: 'Azure VPN Client'
-    authenticationMode: 'MicrosoftEntraId'
-    operatorGroupName: 'alz-platform-operators'
-    emergencyAccessGroupName: 'alz-platform-break-glass'
-      allowedTargetSubnets: [
-        'sharedServices'
-        'privateEndpoints'
-        'runnerInfrastructure'
-      ]
-    spokeReachabilityRequirement: 'Spokes that require operator access must peer to the hub with allowGatewayTransit and useRemoteGateways enabled.'
-  }
-}
+param operatorConnectivityConfig object
 
 @description('Shared platform service configuration for the hub-hosted secret store and consumption of the existing central registry.')
 param sharedServicesConfig object = {
