@@ -337,7 +337,7 @@ jobs:
             --resource-group "${{ steps.runner.outputs.resource_group }}" \
             --name "${{ steps.runner.outputs.function_app_name }}"
 
-      - name: Register GitHub org webhook
+      - name: Register GitHub webhook
         if: steps.runner.outputs.webhook_url != ''
         shell: bash
         env:
@@ -345,41 +345,65 @@ jobs:
           WEBHOOK_URL: ${{ steps.runner.outputs.webhook_url }}
           WEBHOOK_SECRET: ${{ secrets.RUNNER_WEBHOOK_SECRET }}
           GITHUB_ORG: hexmasternl
+          GITHUB_REPO: hexmasternl/hexmaster-waf-foundation
         run: |
           set -euo pipefail
 
-          # List existing org webhooks and find one pointing at the same function app host.
-          # We match on the hostname part so that minor URL path changes don't create duplicates.
           WEBHOOK_HOST=$(python3 -c "import urllib.parse, os; print(urllib.parse.urlparse(os.environ['WEBHOOK_URL']).netloc)")
           echo "Looking for existing webhook with host: $WEBHOOK_HOST"
 
-          EXISTING_ID=$(gh api "orgs/$GITHUB_ORG/hooks" \
-            --jq ".[] | select(.config.url | test(\"$WEBHOOK_HOST\")) | .id" 2>/dev/null || true)
+          upsert_webhook() {
+            local SCOPE="$1"  # "repos/$GITHUB_REPO" or "orgs/$GITHUB_ORG"
+            local SCOPE_LABEL="$2"
 
-          if [[ -n "$EXISTING_ID" ]]; then
-            echo "Updating existing org webhook id=$EXISTING_ID → $WEBHOOK_URL"
-            gh api --method PATCH "orgs/$GITHUB_ORG/hooks/$EXISTING_ID" \
-              -f "config[url]=$WEBHOOK_URL" \
-              -f "config[content_type]=json" \
-              -f "config[secret]=$WEBHOOK_SECRET" \
-              -f "config[insecure_ssl]=0" \
-              -F "active=true" \
-              -f "events[]=workflow_job" \
-              --silent
-            echo "Webhook updated."
-          else
-            echo "No existing webhook found — creating new org webhook → $WEBHOOK_URL"
-            gh api --method POST "orgs/$GITHUB_ORG/hooks" \
-              -f "name=web" \
-              -f "config[url]=$WEBHOOK_URL" \
-              -f "config[content_type]=json" \
-              -f "config[secret]=$WEBHOOK_SECRET" \
-              -f "config[insecure_ssl]=0" \
-              -F "active=true" \
-              -f "events[]=workflow_job" \
-              --silent
-            echo "Webhook created."
-          fi
+            LIST_RESULT=$(gh api "${SCOPE}/hooks" 2>&1) || {
+              echo "::warning::Cannot list ${SCOPE_LABEL} webhooks (HTTP error — check PAT scope). Skipping ${SCOPE_LABEL} webhook."
+              return 0
+            }
+
+            EXISTING_ID=$(echo "$LIST_RESULT" | \
+              python3 -c "
+import json, sys, os
+hooks = json.load(sys.stdin)
+host = os.environ['WEBHOOK_HOST']
+for h in hooks:
+    if host in h.get('config', {}).get('url', ''):
+        print(h['id'])
+        break
+" 2>/dev/null || true)
+
+            if [[ -n "$EXISTING_ID" ]]; then
+              echo "Updating existing ${SCOPE_LABEL} webhook id=$EXISTING_ID → $WEBHOOK_URL"
+              gh api --method PATCH "${SCOPE}/hooks/${EXISTING_ID}" \
+                -f "config[url]=$WEBHOOK_URL" \
+                -f "config[content_type]=json" \
+                -f "config[secret]=$WEBHOOK_SECRET" \
+                -f "config[insecure_ssl]=0" \
+                -F "active=true" \
+                -f "events[]=workflow_job" \
+                --silent
+              echo "::notice::${SCOPE_LABEL} webhook updated (id=$EXISTING_ID)."
+            else
+              echo "No existing ${SCOPE_LABEL} webhook found — creating → $WEBHOOK_URL"
+              gh api --method POST "${SCOPE}/hooks" \
+                -f "name=web" \
+                -f "config[url]=$WEBHOOK_URL" \
+                -f "config[content_type]=json" \
+                -f "config[secret]=$WEBHOOK_SECRET" \
+                -f "config[insecure_ssl]=0" \
+                -F "active=true" \
+                -f "events[]=workflow_job" \
+                --silent
+              echo "::notice::${SCOPE_LABEL} webhook created."
+            fi
+          }
+
+          # Manage repo-level webhook (requires repo scope on PAT).
+          upsert_webhook "repos/$GITHUB_REPO" "repo"
+
+          # Attempt org-level webhook as well (requires admin:org_hook scope on PAT).
+          # This is skipped with a warning if the PAT lacks the necessary scope.
+          upsert_webhook "orgs/$GITHUB_ORG" "org"
 
       - name: Write deployment summary
         shell: bash
