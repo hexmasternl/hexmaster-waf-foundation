@@ -96,6 +96,9 @@ param observabilityConfig = {
   retentionInDays: 30
   dailyQuotaGb: 1
   logAnalyticsDestinationType: 'Dedicated'
+  runnerVmssGuestTelemetry: {
+    enabled: true
+  }
 }
 
 param workloadSpokes = []

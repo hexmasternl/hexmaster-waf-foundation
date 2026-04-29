@@ -1,6 +1,6 @@
 targetScope = 'resourceGroup'
 
-@description('Azure region for the shared Log Analytics workspace.')
+@description('Azure region for the shared Log Analytics workspace and Application Insights.')
 param location string
 
 @description('Tags applied to the observability resources.')
@@ -8,6 +8,9 @@ param tags object = {}
 
 @description('Name of the shared Log Analytics workspace.')
 param workspaceName string
+
+@description('Name of the Application Insights component.')
+param applicationInsightsName string
 
 @description('Minimal observability baseline configuration.')
 param observabilityConfig object = {
@@ -21,11 +24,7 @@ param observabilityConfig object = {
   }
 }
 
-@description('Name of the shared platform Key Vault.')
-param keyVaultName string
-
 var observabilityEnabled = observabilityConfig.enabled
-var diagnosticSettingName = 'send-to-log-analytics'
 var runnerVmssGuestTelemetryEnabled = observabilityEnabled && (observabilityConfig.?runnerVmssGuestTelemetry.?enabled ?? true)
 var runnerVmssGuestTelemetryRuleName = take('dcr-${workspaceName}-runner-linux', 64)
 var runnerVmssGuestTelemetryDestinationName = 'runner-linux-workspace'
@@ -48,29 +47,18 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' = if (o
   }
 }
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
-  name: keyVaultName
-}
-
-#disable-next-line use-recent-api-versions
-resource keyVaultDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (observabilityEnabled) {
-  name: diagnosticSettingName
-  scope: keyVault
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = if (observabilityEnabled) {
+  name: applicationInsightsName
+  location: location
+  kind: 'web'
+  tags: tags
   properties: {
-    workspaceId: workspace.id
-    logAnalyticsDestinationType: observabilityConfig.logAnalyticsDestinationType
-    logs: [
-      {
-        category: 'AuditEvent'
-        enabled: true
-      }
-    ]
-    metrics: [
-      {
-        category: 'AllMetrics'
-        enabled: true
-      }
-    ]
+    Application_Type: 'web'
+    WorkspaceResourceId: workspace.id
+    IngestionMode: 'LogAnalytics'
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+    DisableLocalAuth: false
   }
 }
 
@@ -113,17 +101,36 @@ resource runnerVmssGuestTelemetryRule 'Microsoft.Insights/dataCollectionRules@20
           ]
         }
         {
-          name: 'runnerVmssSyslogDaemon'
+          // Captures runner service (daemon), GitHub Actions output (syslog/user), cron activity
+          name: 'runnerVmssSyslogSystem'
           streams: [
             'Microsoft-Syslog'
           ]
           facilityNames: [
             'daemon'
             'syslog'
+            'user'
+            'cron'
           ]
           logLevels: [
             'Info'
             'Notice'
+            'Warning'
+            'Error'
+            'Critical'
+            'Alert'
+            'Emergency'
+          ]
+        }
+        {
+          name: 'runnerVmssSyslogKernel'
+          streams: [
+            'Microsoft-Syslog'
+          ]
+          facilityNames: [
+            'kern'
+          ]
+          logLevels: [
             'Warning'
             'Error'
             'Critical'
@@ -160,6 +167,14 @@ output workspace object = {
   name: observabilityEnabled ? workspace.name : ''
   id: observabilityEnabled ? workspace.id : ''
   resourceGroupName: observabilityEnabled ? resourceGroup().name : ''
+}
+
+output applicationInsights object = {
+  enabled: observabilityEnabled
+  name: observabilityEnabled ? applicationInsights.name : ''
+  id: observabilityEnabled ? applicationInsights.id : ''
+  connectionString: observabilityEnabled ? applicationInsights.properties.ConnectionString : ''
+  instrumentationKey: observabilityEnabled ? applicationInsights.properties.InstrumentationKey : ''
 }
 
 output lowCostDefaults object = {

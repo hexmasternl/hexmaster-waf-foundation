@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "9361758718047496504"
+      "templateHash": "491769089991663830"
     }
   },
   "parameters": {
@@ -239,6 +239,7 @@
     "requiredTags": "[union(createObject('alz:landingZone', parameters('landingZoneName'), 'alz:environment', parameters('environment'), 'alz:owner', parameters('platformOwner'), 'alz:costCenter', parameters('platformCostCenter'), 'alz:lifecycle', 'shared-platform', 'alz:managedBy', 'bicep'), parameters('tags'))]",
     "connectivityResourceGroupName": "[format('rg-{0}-connectivity-{1}', variables('prefix'), variables('locationToken'))]",
     "platformResourceGroupName": "[format('rg-{0}-platform-{1}', variables('prefix'), variables('locationToken'))]",
+    "monitoringResourceGroupName": "[format('rg-{0}-monitoring-{1}', variables('prefix'), variables('locationToken'))]",
     "runnerResourceGroupName": "[format('rg-{0}-runners-{1}', variables('prefix'), variables('locationToken'))]",
     "hubVnetName": "[format('vnet-{0}-hub-{1}', variables('prefix'), variables('locationToken'))]",
     "sharedServicesSubnetName": "[format('snet-{0}-shared-services', variables('prefix'))]",
@@ -250,6 +251,7 @@
     "containerRegistryResourceGroupName": "mvp-int-env",
     "platformKeyVaultName": "[take(format('kv-{0}-{1}', variables('prefix'), variables('locationToken')), 24)]",
     "logAnalyticsWorkspaceName": "[take(format('law-{0}-{1}', variables('prefix'), variables('locationToken')), 63)]",
+    "applicationInsightsName": "[take(format('appi-{0}-{1}', variables('prefix'), variables('locationToken')), 260)]",
     "runnerScaleSetName": "[format('vmss-{0}-github', variables('prefix'))]",
     "runnerExecutionIdentityName": "[format('id-{0}-runner-exec', variables('prefix'))]",
     "runnerAutoscalerFunctionAppName": "[take(format('func-{0}-runner-{1}', variables('prefix'), variables('locationToken')), 60)]",
@@ -269,6 +271,13 @@
       "name": "[variables('platformResourceGroupName')]",
       "location": "[parameters('primaryLocation')]",
       "tags": "[variables('requiredTags')]"
+    },
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-11-01",
+      "name": "[variables('monitoringResourceGroupName')]",
+      "location": "[parameters('primaryLocation')]",
+      "tags": "[union(variables('requiredTags'), createObject('alz:lifecycle', 'monitoring'))]"
     },
     {
       "type": "Microsoft.Resources/resourceGroups",
@@ -2102,6 +2111,9 @@
           },
           "runnerExecutionConfig": {
             "value": "[parameters('runnerExecutionConfig')]"
+          },
+          "applicationInsightsConnectionString": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.applicationInsights.value.connectionString]"
           }
         },
         "template": {
@@ -2111,7 +2123,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "1959482897999758036"
+              "templateHash": "14673187390971713400"
             }
           },
           "parameters": {
@@ -2190,6 +2202,13 @@
               },
               "metadata": {
                 "description": "Runner execution configuration for the VM scale set and webhook autoscaler."
+              }
+            },
+            "applicationInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights connection string for the runner autoscaler Function App. When provided, all function logs and exceptions are sent to Application Insights."
               }
             }
           },
@@ -2393,6 +2412,10 @@
                     {
                       "name": "GITHUB_WEBHOOK_SECRET",
                       "value": "[format('@Microsoft.KeyVault(SecretUri={0})', format('{0}secrets/{1}', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('keyVaultResourceGroupName')), 'Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-11-01').vaultUri, parameters('runnerExecutionConfig').githubWebhookSecretName))]"
+                    },
+                    {
+                      "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                      "value": "[parameters('applicationInsightsConnectionString')]"
                     }
                   ]
                 }
@@ -2480,6 +2503,7 @@
       },
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('runnerResourceGroupName'))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'shared-platform-services')]"
       ]
@@ -2488,7 +2512,7 @@
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "landing-zone-observability",
-      "resourceGroup": "[variables('platformResourceGroupName')]",
+      "resourceGroup": "[variables('monitoringResourceGroupName')]",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
@@ -2504,11 +2528,11 @@
           "workspaceName": {
             "value": "[variables('logAnalyticsWorkspaceName')]"
           },
+          "applicationInsightsName": {
+            "value": "[variables('applicationInsightsName')]"
+          },
           "observabilityConfig": {
             "value": "[parameters('observabilityConfig')]"
-          },
-          "keyVaultName": {
-            "value": "[variables('platformKeyVaultName')]"
           }
         },
         "template": {
@@ -2518,14 +2542,14 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "5552758149036454053"
+              "templateHash": "7775536981904358802"
             }
           },
           "parameters": {
             "location": {
               "type": "string",
               "metadata": {
-                "description": "Azure region for the shared Log Analytics workspace."
+                "description": "Azure region for the shared Log Analytics workspace and Application Insights."
               }
             },
             "tags": {
@@ -2539,6 +2563,12 @@
               "type": "string",
               "metadata": {
                 "description": "Name of the shared Log Analytics workspace."
+              }
+            },
+            "applicationInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Application Insights component."
               }
             },
             "observabilityConfig": {
@@ -2556,17 +2586,10 @@
               "metadata": {
                 "description": "Minimal observability baseline configuration."
               }
-            },
-            "keyVaultName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the shared platform Key Vault."
-              }
             }
           },
           "variables": {
             "observabilityEnabled": "[parameters('observabilityConfig').enabled]",
-            "diagnosticSettingName": "send-to-log-analytics",
             "runnerVmssGuestTelemetryEnabled": "[and(variables('observabilityEnabled'), coalesce(tryGet(tryGet(parameters('observabilityConfig'), 'runnerVmssGuestTelemetry'), 'enabled'), true()))]",
             "runnerVmssGuestTelemetryRuleName": "[take(format('dcr-{0}-runner-linux', parameters('workspaceName')), 64)]",
             "runnerVmssGuestTelemetryDestinationName": "runner-linux-workspace"
@@ -2594,25 +2617,19 @@
             },
             {
               "condition": "[variables('observabilityEnabled')]",
-              "type": "Microsoft.Insights/diagnosticSettings",
-              "apiVersion": "2021-05-01-preview",
-              "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
-              "name": "[variables('diagnosticSettingName')]",
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('applicationInsightsName')]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "tags": "[parameters('tags')]",
               "properties": {
-                "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]",
-                "logAnalyticsDestinationType": "[parameters('observabilityConfig').logAnalyticsDestinationType]",
-                "logs": [
-                  {
-                    "category": "AuditEvent",
-                    "enabled": true
-                  }
-                ],
-                "metrics": [
-                  {
-                    "category": "AllMetrics",
-                    "enabled": true
-                  }
-                ]
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]",
+                "IngestionMode": "LogAnalytics",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled",
+                "DisableLocalAuth": false
               },
               "dependsOn": [
                 "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
@@ -2660,17 +2677,35 @@
                       ]
                     },
                     {
-                      "name": "runnerVmssSyslogDaemon",
+                      "name": "runnerVmssSyslogSystem",
                       "streams": [
                         "Microsoft-Syslog"
                       ],
                       "facilityNames": [
                         "daemon",
-                        "syslog"
+                        "syslog",
+                        "user",
+                        "cron"
                       ],
                       "logLevels": [
                         "Info",
                         "Notice",
+                        "Warning",
+                        "Error",
+                        "Critical",
+                        "Alert",
+                        "Emergency"
+                      ]
+                    },
+                    {
+                      "name": "runnerVmssSyslogKernel",
+                      "streams": [
+                        "Microsoft-Syslog"
+                      ],
+                      "facilityNames": [
+                        "kern"
+                      ],
+                      "logLevels": [
                         "Warning",
                         "Error",
                         "Critical",
@@ -2715,6 +2750,16 @@
                 "resourceGroupName": "[if(variables('observabilityEnabled'), resourceGroup().name, '')]"
               }
             },
+            "applicationInsights": {
+              "type": "object",
+              "value": {
+                "enabled": "[variables('observabilityEnabled')]",
+                "name": "[if(variables('observabilityEnabled'), parameters('applicationInsightsName'), '')]",
+                "id": "[if(variables('observabilityEnabled'), resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '')]",
+                "connectionString": "[if(variables('observabilityEnabled'), reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString, '')]",
+                "instrumentationKey": "[if(variables('observabilityEnabled'), reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').InstrumentationKey, '')]"
+              }
+            },
             "lowCostDefaults": {
               "type": "object",
               "value": {
@@ -2736,7 +2781,7 @@
         }
       },
       "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('platformResourceGroupName'))]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('monitoringResourceGroupName'))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'shared-platform-services')]"
       ]
     },
@@ -2752,7 +2797,7 @@
         "mode": "Incremental",
         "parameters": {
           "workspaceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value.id]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value.id]"
           },
           "observabilityConfig": {
             "value": "[parameters('observabilityConfig')]"
@@ -2837,8 +2882,99 @@
       },
       "dependsOn": [
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('connectivityResourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'operator-connectivity')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "landing-zone-observability-platform",
+      "resourceGroup": "[variables('platformResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workspaceId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value.id]"
+          },
+          "observabilityConfig": {
+            "value": "[parameters('observabilityConfig')]"
+          },
+          "keyVaultName": {
+            "value": "[variables('platformKeyVaultName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "17236494913486042460"
+            }
+          },
+          "parameters": {
+            "workspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Workspace resource ID used by the diagnostic settings."
+              }
+            },
+            "observabilityConfig": {
+              "type": "object",
+              "defaultValue": {
+                "enabled": true,
+                "logAnalyticsDestinationType": "Dedicated"
+              },
+              "metadata": {
+                "description": "Minimal observability baseline configuration."
+              }
+            },
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the shared platform Key Vault."
+              }
+            }
+          },
+          "variables": {
+            "diagnosticSettingName": "send-to-log-analytics"
+          },
+          "resources": [
+            {
+              "condition": "[parameters('observabilityConfig').enabled]",
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
+              "name": "[variables('diagnosticSettingName')]",
+              "properties": {
+                "workspaceId": "[parameters('workspaceId')]",
+                "logAnalyticsDestinationType": "[parameters('observabilityConfig').logAnalyticsDestinationType]",
+                "logs": [
+                  {
+                    "category": "AuditEvent",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('platformResourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'shared-platform-services')]"
       ]
     },
     {
@@ -2854,7 +2990,7 @@
         "mode": "Incremental",
         "parameters": {
           "workspaceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value.id]"
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value.id]"
           },
           "observabilityConfig": {
             "value": "[parameters('observabilityConfig')]"
@@ -2865,7 +3001,7 @@
               "functionAppName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.autoscaler.functionApp.name]",
               "autoscalerStorageAccountName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.autoscaler.storageAccount.name]",
               "executionIdentityResourceId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.identities.execution.resourceId]",
-              "guestTelemetryDataCollectionRuleId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.runnerVmssGuestTelemetry.value.dataCollectionRuleId]"
+              "guestTelemetryDataCollectionRuleId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.runnerVmssGuestTelemetry.value.dataCollectionRuleId]"
             }
           }
         },
@@ -3096,9 +3232,76 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('runnerResourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[variables('runnerPoolEnabled')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "runner-ama-metrics-publisher",
+      "resourceGroup": "[variables('monitoringResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform'), '2025-04-01').outputs.runnerPlatform.value.identities.execution.principalId]"
+          },
+          "dataCollectionRuleName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.runnerVmssGuestTelemetry.value.dataCollectionRuleName]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "14229141218172061104"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the user-assigned managed identity that needs Monitoring Metrics Publisher on the data collection rule."
+              }
+            },
+            "dataCollectionRuleName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the data collection rule in this resource group."
+              }
+            }
+          },
+          "variables": {
+            "monitoringMetricsPublisherRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Insights/dataCollectionRules/{0}', parameters('dataCollectionRuleName'))]",
+              "name": "[guid(resourceId('Microsoft.Insights/dataCollectionRules', parameters('dataCollectionRuleName')), parameters('principalId'), variables('monitoringMetricsPublisherRoleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('monitoringMetricsPublisherRoleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('monitoringResourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('runnerResourceGroupName')), 'Microsoft.Resources/deployments', 'runner-execution-platform')]"
       ]
     },
     {
@@ -3277,10 +3480,12 @@
       "type": "object",
       "value": {
         "enabled": "[parameters('observabilityConfig').enabled]",
-        "workspace": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value]",
-        "lowCostDefaults": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('platformResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.lowCostDefaults.value]",
-        "coveredResources": "[if(parameters('observabilityConfig').enabled, concat(createArray('Shared Key Vault', 'Point-to-Site VPN gateway'), if(variables('runnerPoolEnabled'), createArray('Runner Function App', 'Runner VM scale set metrics', 'Runner VM scale set guest logs and telemetry', 'Runner autoscaler storage account services'), createArray())), createArray())]",
-        "operatorNotes": "[if(parameters('observabilityConfig').enabled, createArray('Use the shared workspace for recent platform diagnostics during deployment verification and break-glass investigation.', 'The baseline is intentionally limited to foundational shared-platform resources and does not onboard workload spokes by default.', 'Runner diagnostics are only enabled when the runner pool is deployed with a real admin SSH key.', 'The runner VM scale set uses Azure Monitor Agent plus a Linux data collection rule to send guest syslog and detailed metrics to the shared workspace.'), createArray('Minimal observability is disabled for this deployment.'))]"
+        "monitoringResourceGroupName": "[variables('monitoringResourceGroupName')]",
+        "workspace": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.workspace.value]",
+        "applicationInsights": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.applicationInsights.value]",
+        "lowCostDefaults": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('monitoringResourceGroupName')), 'Microsoft.Resources/deployments', 'landing-zone-observability'), '2025-04-01').outputs.lowCostDefaults.value]",
+        "coveredResources": "[if(parameters('observabilityConfig').enabled, concat(createArray('Shared Key Vault', 'Point-to-Site VPN gateway'), if(variables('runnerPoolEnabled'), createArray('Runner Function App (logs, metrics, App Insights traces)', 'Runner VM scale set metrics', 'Runner VM scale set guest logs and telemetry', 'Runner autoscaler storage account services'), createArray())), createArray())]",
+        "operatorNotes": "[if(parameters('observabilityConfig').enabled, createArray('Log Analytics workspace and Application Insights are in the dedicated monitoring resource group.', 'The Function App sends all structured logs and exceptions to Application Insights via APPLICATIONINSIGHTS_CONNECTION_STRING.', 'Runner VMs ship syslog (daemon, user, cron, auth, kern) and detailed metrics to the workspace via the Azure Monitor Agent.', 'The baseline is intentionally limited to foundational shared-platform resources and does not onboard workload spokes by default.', 'Runner diagnostics are only enabled when the runner pool is deployed with a real admin SSH key.'), createArray('Minimal observability is disabled for this deployment.'))]"
       }
     },
     "workloadSpokeNetworking": {

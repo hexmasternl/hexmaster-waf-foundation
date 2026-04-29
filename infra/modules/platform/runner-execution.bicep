@@ -48,6 +48,9 @@ param runnerExecutionConfig object = {
   registrationTokenApiUrl: 'https://api.github.com/orgs/hexmasternl/actions/runners/registration-token'
 }
 
+@description('Application Insights connection string for the runner autoscaler Function App. When provided, all function logs and exceptions are sent to Application Insights.')
+param applicationInsightsConnectionString string = ''
+
 var virtualMachineContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')
 var deployRunnerPool = runnerExecutionConfig.deployRunnerPool && !empty(runnerExecutionConfig.adminPublicKey)
 var functionPlanName = 'plan-${take(replace(runnerAutoscalerFunctionAppName, '_', '-'), 36)}'
@@ -256,6 +259,10 @@ resource runnerAutoscaler 'Microsoft.Web/sites@2024-11-01' = if (deployRunnerPoo
         {
           name: 'GITHUB_WEBHOOK_SECRET'
           value: '@Microsoft.KeyVault(SecretUri=${webhookSecretUri})'
+        }
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: applicationInsightsConnectionString
         }
       ]
     }
