@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "9286288140746441821"
+      "templateHash": "11531669146442783117"
     }
   },
   "parameters": {
@@ -158,7 +158,7 @@
         "osDiskSizeGb": 64,
         "adminUsername": "runneradmin",
         "adminPublicKey": "",
-        "minRunners": 1,
+        "minRunners": 0,
         "maxRunners": 10,
         "githubPatSecretName": "github-actions-pat",
         "githubWebhookSecretName": "github-webhook-secret",
@@ -2111,7 +2111,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "15566617069572366383"
+              "templateHash": "9094492187352794747"
             }
           },
           "parameters": {
@@ -2182,7 +2182,7 @@
                 "osDiskSizeGb": 64,
                 "adminUsername": "runneradmin",
                 "adminPublicKey": "",
-                "minRunners": 1,
+                "minRunners": 0,
                 "maxRunners": 10,
                 "githubPatSecretName": "github-actions-pat",
                 "githubWebhookSecretName": "github-webhook-secret",
@@ -2476,7 +2476,7 @@
                   "scalingModel": [
                     "The autoscaler reacts to GitHub workflow_job webhook events.",
                     "Queued jobs increase VMSS capacity one runner at a time up to the configured maximum.",
-                    "Completed jobs scale the VMSS back to the configured minimum once no matching runners remain busy."
+                    "Completed jobs scale the VMSS back to zero once no matching runners remain busy."
                   ]
                 },
                 "secretHandlingModel": [
@@ -2486,7 +2486,7 @@
                 ],
                 "platformConstraints": [
                   "Register runners at the GitHub organization scope and keep them in the HexMaster Landingzone runner group.",
-                  "VMSS capacity defaults to one warm runner and is expected to scale with workflow_job webhook activity.",
+                  "VMSS capacity defaults to zero. Runners are provisioned on demand when a workflow_job queued event arrives and scale back to zero when no runners are busy.",
                   "Linux runners install Docker so workflows can use container actions and service containers."
                 ]
               }

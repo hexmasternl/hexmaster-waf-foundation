@@ -110,7 +110,7 @@ param runnerExecutionConfig object = {
   osDiskSizeGb: 64
   adminUsername: 'runneradmin'
   adminPublicKey: ''
-  minRunners: 1
+  minRunners: 0
   maxRunners: 10
   githubPatSecretName: 'github-actions-pat'
   githubWebhookSecretName: 'github-webhook-secret'

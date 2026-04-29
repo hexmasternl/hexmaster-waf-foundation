@@ -157,8 +157,9 @@ steps:
     instructions:
       - Go to: repo hexmaster-waf-foundation → Actions → Test self-hosted runner
           → Run workflow
-      - The job targets [self-hosted, vmss]. The existing warm instance (minRunners=1)
-          should pick it up within seconds of the webhook firing.
+      - The job targets [self-hosted, vmss]. With minRunners=0 (scale-to-zero) the
+          VMSS will cold-start a new VM; expect ~3–5 minutes before the runner registers
+          and picks up the job.
       - Confirm all diagnostic steps complete and the summary shows
           "The workflow reached the VMSS runner successfully."
     if_job_stays_queued:
