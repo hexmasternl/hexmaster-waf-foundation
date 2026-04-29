@@ -294,7 +294,12 @@ jobs:
           az functionapp deployment source config-zip \
             --resource-group "${{ steps.runner.outputs.resource_group }}" \
             --name "${{ steps.runner.outputs.function_app_name }}" \
-            --src runner-autoscaler.zip
+            --src runner-autoscaler.zip \
+            --timeout 300
+          # Restart ensures the new code is picked up and any stale workers are cleared.
+          az functionapp restart \
+            --resource-group "${{ steps.runner.outputs.resource_group }}" \
+            --name "${{ steps.runner.outputs.function_app_name }}"
 
       - name: Write deployment summary
         shell: bash
