@@ -108,7 +108,7 @@ resource runnerVmss 'Microsoft.Compute/virtualMachineScaleSets@2024-11-01' = if 
     }
   }
   properties: {
-    overprovision: true
+    overprovision: false
     upgradePolicy: {
       mode: 'Manual'
     }

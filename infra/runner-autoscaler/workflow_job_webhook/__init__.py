@@ -29,28 +29,37 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(json_response({"message": "ignored", "reason": "runner_pool_mismatch"}), status_code=202, mimetype="application/json")
 
     action = payload.get("action")
-    current_capacity = get_current_capacity()
-    busy_runners = list_busy_runners()
-    desired_capacity = current_capacity
 
-    if action == "queued":
-        desired_capacity = min(max(current_capacity, busy_runners) + 1, get_max_runners())
-    elif action == "completed" and busy_runners == 0:
-        desired_capacity = 0
+    try:
+        current_capacity = get_current_capacity()
+        busy_runners = list_busy_runners()
+        desired_capacity = current_capacity
 
-    updated_capacity = set_capacity(desired_capacity)
-    logging.info("Processed workflow_job event '%s' for label '%s': %s -> %s", action, get_runner_label(), current_capacity, updated_capacity)
+        if action == "queued":
+            desired_capacity = min(max(current_capacity, busy_runners) + 1, get_max_runners())
+        elif action == "completed" and busy_runners == 0:
+            desired_capacity = 0
 
-    return func.HttpResponse(
-        json_response(
-            {
-                "message": "processed",
-                "action": action,
-                "currentCapacity": current_capacity,
-                "busyRunners": busy_runners,
-                "desiredCapacity": updated_capacity,
-            }
-        ),
-        status_code=200,
-        mimetype="application/json",
-    )
+        updated_capacity = set_capacity(desired_capacity)
+        logging.info("Processed workflow_job event '%s' for label '%s': %s -> %s", action, get_runner_label(), current_capacity, updated_capacity)
+
+        return func.HttpResponse(
+            json_response(
+                {
+                    "message": "processed",
+                    "action": action,
+                    "currentCapacity": current_capacity,
+                    "busyRunners": busy_runners,
+                    "desiredCapacity": updated_capacity,
+                }
+            ),
+            status_code=200,
+            mimetype="application/json",
+        )
+    except Exception as exc:
+        logging.exception("Failed to process workflow_job event '%s': %s", action, exc)
+        return func.HttpResponse(
+            json_response({"message": "error", "action": action, "detail": str(exc)}),
+            status_code=500,
+            mimetype="application/json",
+        )
