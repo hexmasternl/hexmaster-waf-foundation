@@ -214,6 +214,29 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Drop legacy Y1 Function App plan (one-time migration to FlexConsumption)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # FC1 cannot be deployed in-place over a Y1 (Dynamic) plan; ARM rejects
+          # the SKU change. Detect a leftover Dynamic plan and remove it (and the
+          # function app on top of it) so the bicep deployment can recreate as FC1.
+          rg="rg-hexlz-dev-runners-westeurope"
+          plan="plan-func-hexlz-dev-runner-westeurope"
+          func="func-hexlz-dev-runner-westeurope"
+          if az group show --name "$rg" --output none 2>/dev/null; then
+            sku=$(az appservice plan show --resource-group "$rg" --name "$plan" --query sku.tier --output tsv 2>/dev/null || true)
+            if [[ "$sku" == "Dynamic" ]]; then
+              echo "Found legacy Dynamic plan '$plan'; deleting function app and plan to allow FC1 migration."
+              az functionapp delete --resource-group "$rg" --name "$func" 2>/dev/null || true
+              az appservice plan delete --resource-group "$rg" --name "$plan" --yes 2>/dev/null || true
+            else
+              echo "Plan SKU is '${sku:-<absent>}'; no migration cleanup needed."
+            fi
+          else
+            echo "Resource group '$rg' does not exist yet; nothing to clean up."
+          fi
+
       - name: Deploy subscription-scope landing zone
         shell: bash
         env:
