@@ -362,15 +362,8 @@ jobs:
             }
 
             EXISTING_ID=$(echo "$LIST_RESULT" | \
-              python3 -c "
-import json, sys, os
-hooks = json.load(sys.stdin)
-host = os.environ['WEBHOOK_HOST']
-for h in hooks:
-    if host in h.get('config', {}).get('url', ''):
-        print(h['id'])
-        break
-" 2>/dev/null || true)
+              python3 -c "import json,sys,os; hooks=json.load(sys.stdin); host=os.environ['WEBHOOK_HOST']; print(next((str(h['id']) for h in hooks if host in h.get('config',{}).get('url','')), ''))" \
+              2>/dev/null || true)
 
             if [[ -n "$EXISTING_ID" ]]; then
               echo "Updating existing ${SCOPE_LABEL} webhook id=$EXISTING_ID → $WEBHOOK_URL"
