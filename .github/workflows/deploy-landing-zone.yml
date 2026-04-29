@@ -276,14 +276,34 @@ jobs:
         run: |
           set -euo pipefail
           rm -f runner-autoscaler.zip
+
+          # Install only non-host packages. azure-functions is provided by the
+          # Azure Functions Python worker — bundling it creates an 'azure' namespace
+          # conflict that prevents azure.identity (and azure.functions) from loading.
           pip install \
             -r infra/runner-autoscaler/requirements.txt \
             --target infra/runner-autoscaler/.python_packages/lib/site-packages \
             --quiet
+
+          # Validate that the key package is present and importable before packaging.
+          python3 -c "
+          import sys
+          sys.path.insert(0, 'infra/runner-autoscaler/.python_packages/lib/site-packages')
+          from azure.identity import ManagedIdentityCredential
+          print('azure-identity import OK')
+          "
+
           (
             cd infra/runner-autoscaler
             zip -rq ../../runner-autoscaler.zip .
           )
+
+          # Log zip contents for diagnostics.
+          echo "=== Zip contents (azure packages) ==="
+          unzip -l runner-autoscaler.zip | grep "azure/" | head -20
+          echo "=== Total zip size ==="
+          ls -lh runner-autoscaler.zip
+
           rm -rf infra/runner-autoscaler/.python_packages
 
       - name: Deploy runner autoscaler code
