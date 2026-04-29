@@ -222,28 +222,12 @@ resource runnerAutoscaler 'Microsoft.Web/sites@2024-11-01' = if (deployRunnerPoo
           value: autoscalerStorageConnectionString
         }
         {
-          name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
-          value: autoscalerStorageConnectionString
-        }
-        {
-          name: 'WEBSITE_CONTENTSHARE'
-          value: toLower(take(replace(runnerAutoscalerFunctionAppName, '-', ''), 63))
-        }
-        {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
         }
         {
           name: 'FUNCTIONS_WORKER_RUNTIME'
           value: 'python'
-        }
-        {
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'true'
-        }
-        {
-          name: 'ENABLE_ORYX_BUILD'
-          value: 'true'
         }
         {
           name: 'GITHUB_ORG'

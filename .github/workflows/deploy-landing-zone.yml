@@ -276,10 +276,15 @@ jobs:
         run: |
           set -euo pipefail
           rm -f runner-autoscaler.zip
+          pip install \
+            -r infra/runner-autoscaler/requirements.txt \
+            --target infra/runner-autoscaler/.python_packages/lib/site-packages \
+            --quiet
           (
             cd infra/runner-autoscaler
             zip -rq ../../runner-autoscaler.zip .
           )
+          rm -rf infra/runner-autoscaler/.python_packages
 
       - name: Deploy runner autoscaler code
         if: steps.runner.outputs.function_app_resource_id != ''

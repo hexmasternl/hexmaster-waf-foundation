@@ -42,6 +42,11 @@ artifacts/
 *.local.parameters.json
 *.local.bicepparam
 
+# Python build artifacts
+__pycache__/
+*.pyc
+.python_packages/
+
 # Test and coverage outputs
 coverage/
 TestResults/

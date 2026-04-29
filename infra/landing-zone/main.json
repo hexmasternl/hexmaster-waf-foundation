@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "6157542390734989082"
+      "templateHash": "9361758718047496504"
     }
   },
   "parameters": {
@@ -2111,7 +2111,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "2142199783038014618"
+              "templateHash": "1959482897999758036"
             }
           },
           "parameters": {
@@ -2359,28 +2359,12 @@
                       "value": "[if(variables('deployRunnerPool'), format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2025-01-01').keys[0].value), '')]"
                     },
                     {
-                      "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-                      "value": "[if(variables('deployRunnerPool'), format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2025-01-01').keys[0].value), '')]"
-                    },
-                    {
-                      "name": "WEBSITE_CONTENTSHARE",
-                      "value": "[toLower(take(replace(parameters('runnerAutoscalerFunctionAppName'), '-', ''), 63))]"
-                    },
-                    {
                       "name": "FUNCTIONS_EXTENSION_VERSION",
                       "value": "~4"
                     },
                     {
                       "name": "FUNCTIONS_WORKER_RUNTIME",
                       "value": "python"
-                    },
-                    {
-                      "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
-                      "value": "true"
-                    },
-                    {
-                      "name": "ENABLE_ORYX_BUILD",
-                      "value": "true"
                     },
                     {
                       "name": "GITHUB_ORG",
