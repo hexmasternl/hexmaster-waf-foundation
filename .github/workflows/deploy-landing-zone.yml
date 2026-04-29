@@ -281,20 +281,28 @@ jobs:
           # Azure Functions Python worker — bundling it creates an 'azure' namespace
           # conflict that prevents azure.identity (and azure.functions) from loading.
           #
-          # MUST use python3.11 -m pip so that pip resolves wheels for Python 3.11
-          # (cpython-311 ABI tags). The GitHub runner defaults to Python 3.12, and
-          # without an explicit interpreter, pip bundles cpython-312 .so files (e.g.
+          # --platform / --python-version / --abi flags force pip to download
+          # cp311 manylinux wheels regardless of the runner's Python version (3.12).
+          # Without these flags, pip bundles cpython-312 .so files (e.g.
           # _cffi_backend.cpython-312-*.so) that Python 3.11 in Azure Functions
           # cannot load, causing a silent worker hang on every request.
           #
+          # --only-binary :all: is required by pip when --platform is specified;
+          # all packages in this closure have prebuilt cp311/manylinux wheels so
+          # source builds are not needed.
+          #
           # cryptography is pinned in requirements.txt to 41.0.7, the last release
-          # that ships manylinux2014_x86_64 wheels (glibc >= 2.17). Without the pin,
-          # pip resolves the wheel built for the runner's glibc (2.35+), which then
-          # fails to load in the Azure Functions container (glibc 2.28) with:
-          #   ImportError: GLIBC_2.33 not found (cryptography/_rust.abi3.so)
-          python3.11 -m pip install \
+          # that ships manylinux2014_x86_64 (abi3/glibc >= 2.17) wheels. Without
+          # the pin, pip resolves the wheel built for the runner's glibc (2.35+),
+          # which then fails to load in the Azure Functions container (glibc 2.28).
+          pip install \
             -r infra/runner-autoscaler/requirements.txt \
             --target infra/runner-autoscaler/.python_packages/lib/site-packages \
+            --platform manylinux_2_17_x86_64 \
+            --python-version 3.11 \
+            --implementation cp \
+            --abi cp311 \
+            --only-binary :all: \
             --quiet
 
           # Confirm the wheel selected for cryptography is manylinux2014 (not 2_34+).
