@@ -233,19 +233,30 @@ jobs:
             else
               echo "Plan SKU is '${sku:-<absent>}'; no SKU migration needed."
             fi
-            # Sweep orphaned role assignments at the runner-RG scope. ARM blocks
-            # recreating an assignment with the same name but a different
-            # principalId, which happens whenever the function app is recreated
-            # and gets a new SystemAssigned MI. Orphaned assignments have an
-            # empty principalName.
-            echo "Scanning for orphaned role assignments under '$rg'..."
-            while IFS=$'\t' read -r ra_id ra_principal_name; do
-              [[ -z "$ra_id" ]] && continue
-              if [[ -z "$ra_principal_name" || "$ra_principal_name" == "None" ]]; then
-                echo "Deleting orphaned role assignment: $ra_id"
-                az role assignment delete --ids "$ra_id" 2>/dev/null || true
-              fi
-            done < <(az role assignment list --resource-group "$rg" --output tsv --query "[].[id,principalName]" 2>/dev/null || true)
+            # The function app's role assignments use deterministic names that
+            # do not change when the function app is recreated, but its
+            # SystemAssigned MI gets a fresh principalId. ARM blocks the
+            # assignment update with RoleAssignmentUpdateNotPermitted. Get the
+            # current function app principalId (if any) and delete every role
+            # assignment in the runner RG that targets a different principal,
+            # so bicep can recreate them cleanly.
+            current_principal=$(az functionapp identity show --resource-group "$rg" --name "$func" --query principalId --output tsv 2>/dev/null || true)
+            echo "Current function app principalId: '${current_principal:-<none>}'"
+            vmss_name=$(az vmss list --resource-group "$rg" --query "[0].name" --output tsv 2>/dev/null || true)
+            storage_name=$(az storage account list --resource-group "$rg" --query "[?starts_with(name, 'stautoscaler')].name | [0]" --output tsv 2>/dev/null || true)
+            for scope_resource in "Microsoft.Compute/virtualMachineScaleSets/${vmss_name}" "Microsoft.Storage/storageAccounts/${storage_name}"; do
+              [[ "$scope_resource" == */ ]] && continue
+              sub_id=$(az account show --query id --output tsv)
+              full_scope="/subscriptions/${sub_id}/resourceGroups/${rg}/providers/${scope_resource}"
+              echo "Inspecting role assignments at: $full_scope"
+              while IFS=$'\t' read -r ra_id ra_principal; do
+                [[ -z "$ra_id" ]] && continue
+                if [[ -z "$current_principal" || "$ra_principal" != "$current_principal" ]]; then
+                  echo "Deleting role assignment $ra_id (principal $ra_principal != current $current_principal)."
+                  az role assignment delete --ids "$ra_id" 2>/dev/null || true
+                fi
+              done < <(az role assignment list --scope "$full_scope" --output tsv --query "[].[id,principalId]" 2>/dev/null || true)
+            done
           else
             echo "Resource group '$rg' does not exist yet; nothing to clean up."
           fi
