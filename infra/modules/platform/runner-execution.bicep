@@ -238,8 +238,12 @@ resource runnerAutoscaler 'Microsoft.Web/sites@2024-11-01' = if (deployRunnerPoo
           value: 'python'
         }
         {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
+          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
+          value: 'true'
+        }
+        {
+          name: 'ENABLE_ORYX_BUILD'
+          value: 'true'
         }
         {
           name: 'GITHUB_ORG'

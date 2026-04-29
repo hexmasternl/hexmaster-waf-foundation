@@ -276,8 +276,6 @@ jobs:
         run: |
           set -euo pipefail
           rm -f runner-autoscaler.zip
-          python -m pip install --upgrade pip
-          python -m pip install -r infra/runner-autoscaler/requirements.txt --target infra/runner-autoscaler/.python_packages/lib/site-packages
           (
             cd infra/runner-autoscaler
             zip -rq ../../runner-autoscaler.zip .

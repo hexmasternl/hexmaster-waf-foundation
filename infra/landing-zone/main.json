@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "3425758573614758317"
+      "templateHash": "9286288140746441821"
     }
   },
   "parameters": {
@@ -2111,7 +2111,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "11271092244529965457"
+              "templateHash": "15566617069572366383"
             }
           },
           "parameters": {
@@ -2375,8 +2375,12 @@
                       "value": "python"
                     },
                     {
-                      "name": "WEBSITE_RUN_FROM_PACKAGE",
-                      "value": "1"
+                      "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+                      "value": "true"
+                    },
+                    {
+                      "name": "ENABLE_ORYX_BUILD",
+                      "value": "true"
                     },
                     {
                       "name": "GITHUB_ORG",
