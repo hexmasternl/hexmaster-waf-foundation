@@ -28,6 +28,13 @@ param runnerBootstrapGitHubPat string = ''
 @description('Secret name used for the bootstrap GitHub PAT.')
 param runnerBootstrapGitHubPatSecretName string = 'github-actions-pat'
 
+@secure()
+@description('Optional GitHub webhook secret value seeded into Key Vault for the autoscaler webhook.')
+param runnerBootstrapGitHubWebhookSecret string = ''
+
+@description('Secret name used for the autoscaler webhook shared secret.')
+param runnerBootstrapGitHubWebhookSecretName string = 'github-webhook-secret'
+
 @description('Shared-service hosting configuration for secret storage and consumption of an existing central registry.')
 param sharedServicesConfig object = {
   secretVault: {
@@ -79,6 +86,14 @@ resource runnerBootstrapGitHubPatSecret 'Microsoft.KeyVault/vaults/secrets@2024-
   name: runnerBootstrapGitHubPatSecretName
   properties: {
     value: runnerBootstrapGitHubPat
+  }
+}
+
+resource runnerBootstrapGitHubWebhookSecretResource 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = if (!empty(runnerBootstrapGitHubWebhookSecret)) {
+  parent: platformKeyVault
+  name: runnerBootstrapGitHubWebhookSecretName
+  properties: {
+    value: runnerBootstrapGitHubWebhookSecret
   }
 }
 

@@ -29,6 +29,10 @@ param tags object = {}
 @description('Optional GitHub organization PAT value that the deployment seeds into the shared platform Key Vault.')
 param runnerBootstrapGitHubPat string = ''
 
+@secure()
+@description('Optional GitHub webhook shared secret seeded into the shared platform Key Vault for the runner autoscaler.')
+param runnerBootstrapGitHubWebhookSecret string = ''
+
 @description('Hub platform network configuration, including address planning and DNS baseline metadata.')
 param hubNetworkConfig object = {
   addressPrefixes: [
@@ -301,6 +305,8 @@ module sharedServices '../modules/platform/shared-services.bicep' = {
     keyVaultName: platformKeyVaultName
     runnerBootstrapGitHubPat: runnerBootstrapGitHubPat
     runnerBootstrapGitHubPatSecretName: runnerExecutionConfig.githubPatSecretName
+    runnerBootstrapGitHubWebhookSecret: runnerBootstrapGitHubWebhookSecret
+    runnerBootstrapGitHubWebhookSecretName: runnerExecutionConfig.githubWebhookSecretName
     sharedServicesConfig: sharedServicesConfig
   }
 }

@@ -122,13 +122,14 @@ jobs:
         shell: bash
         env:
           RUNNER_BOOTSTRAP_GITHUB_PAT: ${{ secrets.ADMIN_ORG_PAT }}
+          RUNNER_BOOTSTRAP_GITHUB_WEBHOOK_SECRET: ${{ secrets.RUNNER_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
           if [[ "$BICEP_PARAMETER_FILE" == *.bicepparam ]]; then
             az deployment sub what-if \
               --name "$DEPLOYMENT_NAME-preview" \
               --location "$AZURE_LOCATION" \
-              --parameters "$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" \
+              --parameters "$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" runnerBootstrapGitHubWebhookSecret="$RUNNER_BOOTSTRAP_GITHUB_WEBHOOK_SECRET" \
               --no-pretty-print \
               --result-format FullResourcePayloads \
               --output json > what-if.json
@@ -137,7 +138,7 @@ jobs:
               --name "$DEPLOYMENT_NAME-preview" \
               --location "$AZURE_LOCATION" \
               --template-file "$BICEP_TEMPLATE" \
-              --parameters "@$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" \
+              --parameters "@$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" runnerBootstrapGitHubWebhookSecret="$RUNNER_BOOTSTRAP_GITHUB_WEBHOOK_SECRET" \
               --no-pretty-print \
               --result-format FullResourcePayloads \
               --output json > what-if.json
@@ -217,20 +218,21 @@ jobs:
         shell: bash
         env:
           RUNNER_BOOTSTRAP_GITHUB_PAT: ${{ secrets.ADMIN_ORG_PAT }}
+          RUNNER_BOOTSTRAP_GITHUB_WEBHOOK_SECRET: ${{ secrets.RUNNER_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
           if [[ "$BICEP_PARAMETER_FILE" == *.bicepparam ]]; then
             az deployment sub create \
               --name "$DEPLOYMENT_NAME" \
               --location "$AZURE_LOCATION" \
-              --parameters "$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" \
+              --parameters "$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" runnerBootstrapGitHubWebhookSecret="$RUNNER_BOOTSTRAP_GITHUB_WEBHOOK_SECRET" \
               --output json > deployment.json
           else
             az deployment sub create \
               --name "$DEPLOYMENT_NAME" \
               --location "$AZURE_LOCATION" \
               --template-file "$BICEP_TEMPLATE" \
-              --parameters "@$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" \
+              --parameters "@$BICEP_PARAMETER_FILE" runnerBootstrapGitHubPat="$RUNNER_BOOTSTRAP_GITHUB_PAT" runnerBootstrapGitHubWebhookSecret="$RUNNER_BOOTSTRAP_GITHUB_WEBHOOK_SECRET" \
               --output json > deployment.json
           fi
 

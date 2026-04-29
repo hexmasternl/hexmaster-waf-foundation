@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "11864921859098280802"
+      "templateHash": "3425758573614758317"
     }
   },
   "parameters": {
@@ -59,6 +59,13 @@
       "defaultValue": "",
       "metadata": {
         "description": "Optional GitHub organization PAT value that the deployment seeds into the shared platform Key Vault."
+      }
+    },
+    "runnerBootstrapGitHubWebhookSecret": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional GitHub webhook shared secret seeded into the shared platform Key Vault for the runner autoscaler."
       }
     },
     "hubNetworkConfig": {
@@ -1774,6 +1781,12 @@
           "runnerBootstrapGitHubPatSecretName": {
             "value": "[parameters('runnerExecutionConfig').githubPatSecretName]"
           },
+          "runnerBootstrapGitHubWebhookSecret": {
+            "value": "[parameters('runnerBootstrapGitHubWebhookSecret')]"
+          },
+          "runnerBootstrapGitHubWebhookSecretName": {
+            "value": "[parameters('runnerExecutionConfig').githubWebhookSecretName]"
+          },
           "sharedServicesConfig": {
             "value": "[parameters('sharedServicesConfig')]"
           }
@@ -1785,7 +1798,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "3653168851440278895"
+              "templateHash": "4866495681055249440"
             }
           },
           "parameters": {
@@ -1846,6 +1859,20 @@
                 "description": "Secret name used for the bootstrap GitHub PAT."
               }
             },
+            "runnerBootstrapGitHubWebhookSecret": {
+              "type": "securestring",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional GitHub webhook secret value seeded into Key Vault for the autoscaler webhook."
+              }
+            },
+            "runnerBootstrapGitHubWebhookSecretName": {
+              "type": "string",
+              "defaultValue": "github-webhook-secret",
+              "metadata": {
+                "description": "Secret name used for the autoscaler webhook shared secret."
+              }
+            },
             "sharedServicesConfig": {
               "type": "object",
               "defaultValue": {
@@ -1901,6 +1928,18 @@
               "name": "[format('{0}/{1}', parameters('keyVaultName'), parameters('runnerBootstrapGitHubPatSecretName'))]",
               "properties": {
                 "value": "[parameters('runnerBootstrapGitHubPat')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('runnerBootstrapGitHubWebhookSecret')))]",
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2024-11-01",
+              "name": "[format('{0}/{1}', parameters('keyVaultName'), parameters('runnerBootstrapGitHubWebhookSecretName'))]",
+              "properties": {
+                "value": "[parameters('runnerBootstrapGitHubWebhookSecret')]"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"

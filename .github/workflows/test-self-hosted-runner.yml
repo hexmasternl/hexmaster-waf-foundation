@@ -22,7 +22,7 @@ jobs:
     env:
       ACTIONS_RUNNER_DEBUG: 'true'
       ACTIONS_STEP_DEBUG: 'true'
-    runs-on: self-hosted
+    runs-on: [self-hosted, vmss]
     timeout-minutes: 15
 
     steps:
