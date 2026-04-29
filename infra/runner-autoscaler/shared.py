@@ -109,18 +109,16 @@ def get_current_capacity() -> int:
 
 
 def set_capacity(desired_capacity: int) -> int:
-    model = get_vmss_model()
-    current_capacity = int(model.get("sku", {}).get("capacity", 0))
+    current_capacity = get_current_capacity()
     if current_capacity == desired_capacity:
         return current_capacity
 
-    model["sku"]["capacity"] = desired_capacity
-    payload = json.dumps(model).encode("utf-8")
+    payload = json.dumps({"sku": {"capacity": desired_capacity}}).encode("utf-8")
     request = urllib.request.Request(
         f"https://management.azure.com{get_vmss_resource_id()}?api-version={ARM_API_VERSION}",
         data=payload,
         headers=build_management_headers(),
-        method="PUT",
+        method="PATCH",
     )
     with urllib.request.urlopen(request, timeout=60):
         pass
