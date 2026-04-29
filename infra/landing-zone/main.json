@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "491769089991663830"
+      "templateHash": "577377590511901924"
     }
   },
   "parameters": {
@@ -99,24 +99,6 @@
     },
     "operatorConnectivityConfig": {
       "type": "object",
-      "defaultValue": {
-        "vpnGatewaySku": "VpnGw1AZ",
-        "vpnClientAddressPool": "172.20.250.0/24",
-        "entraTenantId": "00000000-0000-0000-0000-000000000000",
-        "entraAudience": "c632b3df-fb67-4d84-bdcf-b95ad541b5c8",
-        "breakGlass": {
-          "primaryClient": "Azure VPN Client",
-          "authenticationMode": "MicrosoftEntraId",
-          "operatorGroupName": "alz-platform-operators",
-          "emergencyAccessGroupName": "alz-platform-break-glass",
-          "allowedTargetSubnets": [
-            "sharedServices",
-            "privateEndpoints",
-            "runnerInfrastructure"
-          ],
-          "spokeReachabilityRequirement": "Spokes that require operator access must peer to the hub with allowGatewayTransit and useRemoteGateways enabled."
-        }
-      },
       "metadata": {
         "description": "Operator connectivity configuration for the Point-to-Site VPN path."
       }
@@ -245,8 +227,11 @@
     "sharedServicesSubnetName": "[format('snet-{0}-shared-services', variables('prefix'))]",
     "privateEndpointsSubnetName": "[format('snet-{0}-private-endpoints', variables('prefix'))]",
     "runnerInfrastructureSubnetName": "[format('snet-{0}-runners', variables('prefix'))]",
+    "dnsResolverInboundSubnetName": "[format('snet-{0}-dns-inbound', variables('prefix'))]",
+    "dnsResolverOutboundSubnetName": "[format('snet-{0}-dns-outbound', variables('prefix'))]",
     "vpnGatewayPublicIpName": "[format('pip-{0}-vpn-az-{1}', variables('prefix'), variables('locationToken'))]",
     "vpnGatewayName": "[format('vpngw-{0}-{1}', variables('prefix'), variables('locationToken'))]",
+    "dnsResolverName": "[format('dnspr-{0}-hub-{1}', variables('prefix'), variables('locationToken'))]",
     "containerRegistryName": "nvv54gsk4pteu",
     "containerRegistryResourceGroupName": "mvp-int-env",
     "platformKeyVaultName": "[take(format('kv-{0}-{1}', variables('prefix'), variables('locationToken')), 24)]",
@@ -321,7 +306,9 @@
             "value": {
               "sharedServices": "[variables('sharedServicesSubnetName')]",
               "privateEndpoints": "[variables('privateEndpointsSubnetName')]",
-              "runnerInfrastructure": "[variables('runnerInfrastructureSubnetName')]"
+              "runnerInfrastructure": "[variables('runnerInfrastructureSubnetName')]",
+              "dnsResolverInbound": "[variables('dnsResolverInboundSubnetName')]",
+              "dnsResolverOutbound": "[variables('dnsResolverOutboundSubnetName')]"
             }
           },
           "hubNetworkConfig": {
@@ -338,7 +325,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "7367136346338415509"
+              "templateHash": "12216371952465268789"
             }
           },
           "parameters": {
@@ -384,6 +371,87 @@
             "subnetPrefixes": "[parameters('hubNetworkConfig').subnetPrefixes]"
           },
           "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-{0}', parameters('subnetNames').dnsResolverInbound)]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowDnsFromVirtualNetworkTcp",
+                    "properties": {
+                      "description": "Allows TCP DNS queries from hub and peered spoke VNets.",
+                      "protocol": "Tcp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "53",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "destinationAddressPrefix": "[variables('subnetPrefixes').dnsResolverInbound]",
+                      "access": "Allow",
+                      "priority": 100,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "AllowDnsFromVirtualNetworkUdp",
+                    "properties": {
+                      "description": "Allows UDP DNS queries from hub and peered spoke VNets.",
+                      "protocol": "Udp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "53",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "destinationAddressPrefix": "[variables('subnetPrefixes').dnsResolverInbound]",
+                      "access": "Allow",
+                      "priority": 110,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "AllowDnsFromVpnClientsTcp",
+                    "properties": {
+                      "description": "Allows TCP DNS queries from P2S VPN operators so they resolve private hostnames when connected.",
+                      "protocol": "Tcp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "53",
+                      "sourceAddressPrefix": "[parameters('vpnClientAddressPool')]",
+                      "destinationAddressPrefix": "[variables('subnetPrefixes').dnsResolverInbound]",
+                      "access": "Allow",
+                      "priority": 200,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "AllowDnsFromVpnClientsUdp",
+                    "properties": {
+                      "description": "Allows UDP DNS queries from P2S VPN operators so they resolve private hostnames when connected.",
+                      "protocol": "Udp",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "53",
+                      "sourceAddressPrefix": "[parameters('vpnClientAddressPool')]",
+                      "destinationAddressPrefix": "[variables('subnetPrefixes').dnsResolverInbound]",
+                      "access": "Allow",
+                      "priority": 210,
+                      "direction": "Inbound"
+                    }
+                  },
+                  {
+                    "name": "DenyInternetInbound",
+                    "properties": {
+                      "description": "Prevents the DNS resolver inbound endpoint from being reachable from the internet.",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "Internet",
+                      "destinationAddressPrefix": "*",
+                      "access": "Deny",
+                      "priority": 4000,
+                      "direction": "Inbound"
+                    }
+                  }
+                ]
+              }
+            },
             {
               "type": "Microsoft.Network/networkSecurityGroups",
               "apiVersion": "2024-05-01",
@@ -628,10 +696,42 @@
                         "id": "[resourceId('Microsoft.Network/natGateways', format('nat-{0}', parameters('subnetNames').runnerInfrastructure))]"
                       }
                     }
+                  },
+                  {
+                    "name": "[parameters('subnetNames').dnsResolverInbound]",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetPrefixes').dnsResolverInbound]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').dnsResolverInbound))]"
+                      },
+                      "delegations": [
+                        {
+                          "name": "dns-resolver-inbound",
+                          "properties": {
+                            "serviceName": "Microsoft.Network/dnsResolvers"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "[parameters('subnetNames').dnsResolverOutbound]",
+                    "properties": {
+                      "addressPrefix": "[variables('subnetPrefixes').dnsResolverOutbound]",
+                      "delegations": [
+                        {
+                          "name": "dns-resolver-outbound",
+                          "properties": {
+                            "serviceName": "Microsoft.Network/dnsResolvers"
+                          }
+                        }
+                      ]
+                    }
                   }
                 ]
               },
               "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').dnsResolverInbound))]",
                 "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').privateEndpoints))]",
                 "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').privateEndpoints))]",
                 "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').runnerInfrastructure))]",
@@ -652,7 +752,9 @@
                   "gateway": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), 'GatewaySubnet')]",
                   "sharedServices": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').sharedServices)]",
                   "privateEndpoints": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').privateEndpoints)]",
-                  "runnerInfrastructure": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').runnerInfrastructure)]"
+                  "runnerInfrastructure": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').runnerInfrastructure)]",
+                  "dnsResolverInbound": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').dnsResolverInbound)]",
+                  "dnsResolverOutbound": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetNames').dnsResolverOutbound)]"
                 },
                 "routeTables": {
                   "sharedServices": "[resourceId('Microsoft.Network/routeTables', format('rt-{0}', parameters('subnetNames').sharedServices))]",
@@ -662,7 +764,8 @@
                 "networkSecurityGroups": {
                   "sharedServices": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').sharedServices))]",
                   "privateEndpoints": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').privateEndpoints))]",
-                  "runnerInfrastructure": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').runnerInfrastructure))]"
+                  "runnerInfrastructure": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').runnerInfrastructure))]",
+                  "dnsResolverInbound": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-{0}', parameters('subnetNames').dnsResolverInbound))]"
                 },
                 "natGateway": {
                   "id": "[resourceId('Microsoft.Network/natGateways', format('nat-{0}', parameters('subnetNames').runnerInfrastructure))]",
@@ -676,7 +779,8 @@
                   "notes": [
                     "The hub is reserved for platform connectivity, shared services, and runner infrastructure.",
                     "The runner subnet is dedicated to the VM scale set and keeps runner compute separate from shared services and operators.",
-                    "The future spoke supernet is intentionally separate from the hub VNet to keep peering straightforward."
+                    "The future spoke supernet is intentionally separate from the hub VNet to keep peering straightforward.",
+                    "DNS resolver subnets (10.20.3.0/28 inbound, 10.20.3.16/28 outbound) are carved from the formerly reserved futurePlatformDns block (10.20.3.0/24)."
                   ]
                 },
                 "dnsBaseline": {
@@ -685,7 +789,8 @@
                   "spokeLinkMode": "[parameters('hubNetworkConfig').dnsBaseline.spokeLinkMode]",
                   "customDnsServers": "[parameters('hubNetworkConfig').dnsBaseline.customDnsServers]",
                   "notes": [
-                    "Use Azure-provided DNS initially and link hub-hosted private DNS zones to the hub and approved spokes.",
+                    "Hub VNet DHCP DNS is set to the DNS Private Resolver inbound endpoint IP when resolverMode is PrivateResolver.",
+                    "The resolver forwards unknown queries to Azure DNS (168.63.129.16) by default — private DNS zones linked to the hub VNet resolve automatically.",
                     "Keep DNS central in the hub so future spoke onboarding does not require per-spoke resolvers."
                   ]
                 }
@@ -1742,6 +1847,174 @@
                     "Limit the break-glass path to hub platform resources and approved spokes; keep workloads outside the hub."
                   ]
                 }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('connectivityResourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "hub-dns-resolver",
+      "resourceGroup": "[variables('connectivityResourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('primaryLocation')]"
+          },
+          "tags": {
+            "value": "[variables('requiredTags')]"
+          },
+          "resolverName": {
+            "value": "[variables('dnsResolverName')]"
+          },
+          "hubVnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.vnetId]"
+          },
+          "inboundSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.subnetIds.dnsResolverInbound]"
+          },
+          "outboundSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value.subnetIds.dnsResolverOutbound]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "12391963059504241406"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for the DNS resolver."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags applied to the DNS resolver resources."
+              }
+            },
+            "resolverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the DNS Private Resolver."
+              }
+            },
+            "hubVnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the hub virtual network the resolver is associated with."
+              }
+            },
+            "inboundSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the inbound endpoint subnet (must be delegated to Microsoft.Network/dnsResolvers)."
+              }
+            },
+            "outboundSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the outbound endpoint subnet (must be delegated to Microsoft.Network/dnsResolvers)."
+              }
+            },
+            "inboundIpAddress": {
+              "type": "string",
+              "defaultValue": "10.20.3.4",
+              "metadata": {
+                "description": "Static private IP address allocated to the inbound endpoint. Must be within the inbound subnet range."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/dnsResolvers",
+              "apiVersion": "2025-10-01-preview",
+              "name": "[parameters('resolverName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[parameters('hubVnetId')]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Network/dnsResolvers/inboundEndpoints",
+              "apiVersion": "2025-10-01-preview",
+              "name": "[format('{0}/{1}', parameters('resolverName'), 'inbound')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "subnet": {
+                      "id": "[parameters('inboundSubnetId')]"
+                    },
+                    "privateIpAllocationMethod": "Static",
+                    "privateIpAddress": "[parameters('inboundIpAddress')]"
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/dnsResolvers', parameters('resolverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/dnsResolvers/outboundEndpoints",
+              "apiVersion": "2025-10-01-preview",
+              "name": "[format('{0}/{1}', parameters('resolverName'), 'outbound')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('outboundSubnetId')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/dnsResolvers', parameters('resolverName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "resolver": {
+              "type": "object",
+              "value": {
+                "id": "[resourceId('Microsoft.Network/dnsResolvers', parameters('resolverName'))]",
+                "name": "[parameters('resolverName')]",
+                "inboundEndpoint": {
+                  "id": "[resourceId('Microsoft.Network/dnsResolvers/inboundEndpoints', parameters('resolverName'), 'inbound')]",
+                  "name": "inbound",
+                  "ipAddress": "[parameters('inboundIpAddress')]"
+                },
+                "outboundEndpoint": {
+                  "id": "[resourceId('Microsoft.Network/dnsResolvers/outboundEndpoints', parameters('resolverName'), 'outbound')]",
+                  "name": "outbound"
+                },
+                "operatorNotes": [
+                  "[format('Hub VNet DHCP DNS is set to {0} — all hub VMs resolve via this endpoint.', parameters('inboundIpAddress'))]",
+                  "Spoke VMs using hub DNS zones will resolve via this endpoint through VNet peering.",
+                  "[format('VPN P2S clients must configure their DNS server to {0} after connecting to resolve private hostnames.', parameters('inboundIpAddress'))]",
+                  "The outbound endpoint is ready for DNS forwarding rulesets to on-premises resolvers when required.",
+                  "The resolver forwards all other queries to Azure DNS (168.63.129.16) by default — no additional forwarding rules needed for standard Azure private DNS zones."
+                ]
               }
             }
           }
@@ -3463,6 +3736,10 @@
     "hubNetworkFoundation": {
       "type": "object",
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-network-foundation'), '2025-04-01').outputs.foundation.value]"
+    },
+    "dnsResolverFoundation": {
+      "type": "object",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('connectivityResourceGroupName')), 'Microsoft.Resources/deployments', 'hub-dns-resolver'), '2025-04-01').outputs.resolver.value]"
     },
     "operatorConnectivity": {
       "type": "object",

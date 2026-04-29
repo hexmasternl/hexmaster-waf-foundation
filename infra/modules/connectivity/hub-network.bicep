@@ -20,6 +20,86 @@ param vpnClientAddressPool string
 
 var subnetPrefixes = hubNetworkConfig.subnetPrefixes
 
+resource dnsResolverInboundNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: 'nsg-${subnetNames.dnsResolverInbound}'
+  location: location
+  tags: tags
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowDnsFromVirtualNetworkTcp'
+        properties: {
+          description: 'Allows TCP DNS queries from hub and peered spoke VNets.'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '53'
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: subnetPrefixes.dnsResolverInbound
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowDnsFromVirtualNetworkUdp'
+        properties: {
+          description: 'Allows UDP DNS queries from hub and peered spoke VNets.'
+          protocol: 'Udp'
+          sourcePortRange: '*'
+          destinationPortRange: '53'
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: subnetPrefixes.dnsResolverInbound
+          access: 'Allow'
+          priority: 110
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowDnsFromVpnClientsTcp'
+        properties: {
+          description: 'Allows TCP DNS queries from P2S VPN operators so they resolve private hostnames when connected.'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '53'
+          sourceAddressPrefix: vpnClientAddressPool
+          destinationAddressPrefix: subnetPrefixes.dnsResolverInbound
+          access: 'Allow'
+          priority: 200
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowDnsFromVpnClientsUdp'
+        properties: {
+          description: 'Allows UDP DNS queries from P2S VPN operators so they resolve private hostnames when connected.'
+          protocol: 'Udp'
+          sourcePortRange: '*'
+          destinationPortRange: '53'
+          sourceAddressPrefix: vpnClientAddressPool
+          destinationAddressPrefix: subnetPrefixes.dnsResolverInbound
+          access: 'Allow'
+          priority: 210
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'DenyInternetInbound'
+        properties: {
+          description: 'Prevents the DNS resolver inbound endpoint from being reachable from the internet.'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+          access: 'Deny'
+          priority: 4000
+          direction: 'Inbound'
+        }
+      }
+    ]
+  }
+}
+
 resource sharedServicesNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
   name: 'nsg-${subnetNames.sharedServices}'
   location: location
@@ -252,6 +332,37 @@ resource hubVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
           }
         }
       }
+      {
+        name: subnetNames.dnsResolverInbound
+        properties: {
+          addressPrefix: subnetPrefixes.dnsResolverInbound
+          networkSecurityGroup: {
+            id: dnsResolverInboundNsg.id
+          }
+          delegations: [
+            {
+              name: 'dns-resolver-inbound'
+              properties: {
+                serviceName: 'Microsoft.Network/dnsResolvers'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: subnetNames.dnsResolverOutbound
+        properties: {
+          addressPrefix: subnetPrefixes.dnsResolverOutbound
+          delegations: [
+            {
+              name: 'dns-resolver-outbound'
+              properties: {
+                serviceName: 'Microsoft.Network/dnsResolvers'
+              }
+            }
+          ]
+        }
+      }
     ]
   }
 }
@@ -264,6 +375,8 @@ output foundation object = {
     sharedServices: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.sharedServices)
     privateEndpoints: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.privateEndpoints)
     runnerInfrastructure: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.runnerInfrastructure)
+    dnsResolverInbound: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.dnsResolverInbound)
+    dnsResolverOutbound: resourceId('Microsoft.Network/virtualNetworks/subnets', hubVnet.name, subnetNames.dnsResolverOutbound)
   }
   routeTables: {
     sharedServices: sharedServicesRouteTable.id
@@ -274,6 +387,7 @@ output foundation object = {
     sharedServices: sharedServicesNsg.id
     privateEndpoints: privateEndpointsNsg.id
     runnerInfrastructure: runnerInfrastructureNsg.id
+    dnsResolverInbound: dnsResolverInboundNsg.id
   }
   natGateway: {
     id: runnerSubnetNatGateway.id
@@ -288,6 +402,7 @@ output foundation object = {
       'The hub is reserved for platform connectivity, shared services, and runner infrastructure.'
       'The runner subnet is dedicated to the VM scale set and keeps runner compute separate from shared services and operators.'
       'The future spoke supernet is intentionally separate from the hub VNet to keep peering straightforward.'
+      'DNS resolver subnets (10.20.3.0/28 inbound, 10.20.3.16/28 outbound) are carved from the formerly reserved futurePlatformDns block (10.20.3.0/24).'
     ]
   }
   dnsBaseline: {
@@ -296,7 +411,8 @@ output foundation object = {
     spokeLinkMode: hubNetworkConfig.dnsBaseline.spokeLinkMode
     customDnsServers: hubNetworkConfig.dnsBaseline.customDnsServers
     notes: [
-      'Use Azure-provided DNS initially and link hub-hosted private DNS zones to the hub and approved spokes.'
+      'Hub VNet DHCP DNS is set to the DNS Private Resolver inbound endpoint IP when resolverMode is PrivateResolver.'
+      'The resolver forwards unknown queries to Azure DNS (168.63.129.16) by default — private DNS zones linked to the hub VNet resolve automatically.'
       'Keep DNS central in the hub so future spoke onboarding does not require per-spoke resolvers.'
     ]
   }

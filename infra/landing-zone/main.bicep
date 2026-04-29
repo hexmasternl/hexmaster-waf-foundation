@@ -133,8 +133,11 @@ var hubVnetName = 'vnet-${prefix}-hub-${locationToken}'
 var sharedServicesSubnetName = 'snet-${prefix}-shared-services'
 var privateEndpointsSubnetName = 'snet-${prefix}-private-endpoints'
 var runnerInfrastructureSubnetName = 'snet-${prefix}-runners'
+var dnsResolverInboundSubnetName = 'snet-${prefix}-dns-inbound'
+var dnsResolverOutboundSubnetName = 'snet-${prefix}-dns-outbound'
 var vpnGatewayPublicIpName = 'pip-${prefix}-vpn-az-${locationToken}'
 var vpnGatewayName = 'vpngw-${prefix}-${locationToken}'
+var dnsResolverName = 'dnspr-${prefix}-hub-${locationToken}'
 var containerRegistryName = 'nvv54gsk4pteu'
 var containerRegistryResourceGroupName = 'mvp-int-env'
 var platformKeyVaultName = take('kv-${prefix}-${locationToken}', 24)
@@ -192,6 +195,8 @@ module hubNetwork '../modules/connectivity/hub-network.bicep' = {
         sharedServices: sharedServicesSubnetName
         privateEndpoints: privateEndpointsSubnetName
         runnerInfrastructure: runnerInfrastructureSubnetName
+        dnsResolverInbound: dnsResolverInboundSubnetName
+        dnsResolverOutbound: dnsResolverOutboundSubnetName
       }
       hubNetworkConfig: hubNetworkConfig
       vpnClientAddressPool: operatorConnectivityConfig.vpnClientAddressPool
@@ -285,8 +290,20 @@ module operatorConnectivity '../modules/connectivity/operator-connectivity.bicep
   }
 }
 
-module sharedServices '../modules/platform/shared-services.bicep' = {
-  name: 'shared-platform-services'
+module dnsResolver '../modules/connectivity/dns-resolver.bicep' = {
+  name: 'hub-dns-resolver'
+  scope: connectivityResourceGroup
+  params: {
+    location: primaryLocation
+    tags: requiredTags
+    resolverName: dnsResolverName
+    hubVnetId: hubNetwork.outputs.foundation.vnetId
+    inboundSubnetId: hubNetwork.outputs.foundation.subnetIds.dnsResolverInbound
+    outboundSubnetId: hubNetwork.outputs.foundation.subnetIds.dnsResolverOutbound
+  }
+}
+
+module sharedServices '../modules/platform/shared-services.bicep' = {  name: 'shared-platform-services'
   scope: platformResourceGroup
   params: {
     location: primaryLocation
@@ -436,6 +453,7 @@ var deployedWorkloadSpokes = [for spoke in workloadSpokeDefinitions: {
 
 output requiredTags object = requiredTags
 output hubNetworkFoundation object = hubNetwork.outputs.foundation
+output dnsResolverFoundation object = dnsResolver.outputs.resolver
 output operatorConnectivity object = operatorConnectivity.outputs.connectivity
 output sharedPlatformServices object = sharedServices.outputs.sharedServices
 output runnerExecutionPlatform object = runnerExecution.outputs.runnerPlatform

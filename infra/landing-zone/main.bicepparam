@@ -19,18 +19,22 @@ param hubNetworkConfig = {
     gateway: '10.20.0.0/24'
     sharedServices: '10.20.1.0/24'
     privateEndpoints: '10.20.2.0/24'
+    dnsResolverInbound: '10.20.3.0/28'
+    dnsResolverOutbound: '10.20.3.16/28'
     runnerInfrastructure: '10.20.4.0/23'
   }
   reservedAddressPrefixes: {
-    futurePlatformDns: '10.20.3.0/24'
+    futurePlatformDns: '10.20.3.32/27'
     futurePlatformSecurity: '10.20.6.0/23'
     futureHubExpansion: '10.20.8.0/21'
   }
   dnsBaseline: {
-    resolverMode: 'AzureProvided'
+    resolverMode: 'PrivateResolver'
     privateZonePlacement: 'Hub'
     spokeLinkMode: 'LinkToHubPrivateZones'
-    customDnsServers: []
+    customDnsServers: [
+      '10.20.3.4'
+    ]
   }
 }
 
