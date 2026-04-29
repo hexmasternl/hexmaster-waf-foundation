@@ -1,0 +1,172 @@
+version: 1
+landing_zone: azure-landing-zone-foundation
+scope: runner-execution-platform
+title: GitHub Actions VMSS Runner Bootstrap Runbook
+
+overview: |
+  This runbook covers all one-time and recurring steps required before the
+  GitHub Actions VMSS runner pool can register with the GitHub organization
+  and pick up workflow jobs. Complete these steps in order before or
+  immediately after the first landing-zone deployment.
+
+prerequisites:
+  - GitHub organization admin access to hexmasternl
+  - GitHub repository write access to hexmaster-waf-foundation (to set Actions secrets)
+  - Azure RBAC rights to read Key Vault secrets (for verification only)
+  - ADMIN_ORG_PAT does not yet exist (or needs rotation)
+
+steps:
+
+  - id: 1
+    title: Create the GitHub Personal Access Token (ADMIN_ORG_PAT)
+    detail: |
+      The PAT is used by each VMSS instance at boot to obtain a short-lived runner
+      registration token from GitHub. It is stored in Key Vault and fetched via
+      the VM managed identity at startup through cloud-init.
+    instructions:
+      - Go to: GitHub profile (top-right avatar) → Settings → Developer settings
+          → Personal access tokens → Fine-grained tokens → Generate new token
+      - token_name: hexmaster-lz-runner-bootstrap
+      - expiration: 90 days (set a calendar reminder to rotate before expiry)
+      - resource_owner: hexmasternl (select the org, not your personal account)
+      - repository_access: All repositories (or limit to hexmaster-waf-foundation)
+      - permissions:
+          repository:
+            Actions: Read-only
+          organization:
+            Self-hosted runners: Read and write
+      - Click Generate token and copy the value immediately — it is not shown again.
+    fallback_classic_token: |
+      If fine-grained tokens are blocked by your org policy, create a classic PAT at
+      GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+      with the admin:org scope (which includes manage_runners:org).
+    rotation: |
+      Rotate by creating a new token before the old one expires, updating the
+      ADMIN_ORG_PAT Actions secret, and re-running the deploy-landing-zone workflow
+      so the new value is written to Key Vault. The existing VMSS instances will
+      continue working until they next reboot; new instances will pick up the
+      refreshed secret automatically.
+
+  - id: 2
+    title: Generate the webhook shared secret (RUNNER_WEBHOOK_SECRET)
+    detail: |
+      The webhook secret is a random string that GitHub signs each workflow_job
+      webhook payload with (X-Hub-Signature-256 header). The autoscaler Function
+      App validates the signature before scaling the VMSS. Both GitHub and Key Vault
+      must hold the same value.
+    instructions:
+      - Generate a cryptographically random value using one of the following commands.
+        Copy the output — you will paste the same value in two places.
+      - bash: openssl rand -hex 32
+      - powershell: |
+          [System.Convert]::ToBase64String(
+            [System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)
+          )
+
+  - id: 3
+    title: Store secrets as GitHub Actions secrets
+    detail: |
+      These secrets are read by the deploy-landing-zone workflow and written into
+      the shared platform Key Vault during deployment. They never appear in Bicep
+      parameter files or ARM output.
+    instructions:
+      - Go to: repo hexmaster-waf-foundation → Settings → Secrets and variables
+          → Actions → New repository secret
+      - Add ADMIN_ORG_PAT with the PAT value from step 1.
+      - Add RUNNER_WEBHOOK_SECRET with the random value from step 2.
+      - Alternatively, add both secrets under Settings → Environments →
+          landing-zone-dev → Add secret (scoped to the environment only).
+    note: |
+      The workflow passes these to the Bicep deployment as the runnerBootstrapGitHubPat
+      and runnerBootstrapGitHubWebhookSecret parameters. Bicep writes them to Key Vault
+      as github-actions-pat and github-webhook-secret respectively.
+
+  - id: 4
+    title: Create the runner group in the GitHub organization
+    detail: |
+      Org-level runners must belong to a runner group. Jobs are only visible to
+      runners whose group grants access to the requesting repository.
+    instructions:
+      - Go to: org hexmasternl → Settings → Actions → Runner groups → New runner group
+      - name: HexMaster Landingzone
+      - repository_access: Selected repositories → add hexmaster-waf-foundation
+      - allow_public_repositories: enabled  # Required if the repo is public
+      - Save the group.
+    cli_equivalent: |
+      # Run after granting yourself the admin:org scope:
+      gh auth refresh -h github.com -s admin:org
+
+      GROUP_ID=$(gh api orgs/hexmasternl/actions/runner-groups \
+        --jq '.runner_groups[] | select(.name=="HexMaster Landingzone") | .id')
+
+      # If the group does not yet exist, create it first:
+      GROUP_ID=$(gh api -X POST orgs/hexmasternl/actions/runner-groups \
+        -f name="HexMaster Landingzone" \
+        -f visibility=selected \
+        -f allows_public_repositories=true \
+        --jq .id)
+
+      REPO_ID=$(gh api repos/hexmasternl/hexmaster-waf-foundation --jq .id)
+      gh api -X PUT "orgs/hexmasternl/actions/runner-groups/${GROUP_ID}/repositories/${REPO_ID}"
+    note: |
+      The cloud-init script registers runners with --runnergroup "HexMaster Landingzone".
+      If this group does not exist or does not include this repository, the VMSS instance
+      boots successfully but the runner never appears in the Actions UI and queued jobs
+      wait indefinitely until cancelled.
+
+  - id: 5
+    title: Deploy the landing zone
+    detail: |
+      The deployment writes both secrets to Key Vault, provisions the VMSS, and
+      zip-deploys the Function App autoscaler code.
+    instructions:
+      - Run the deploy-landing-zone workflow manually from GitHub → Actions →
+          Deploy landing zone → Run workflow.
+      - Set execute_deploy to true.
+      - Record the runnerExecutionPlatform.autoscaler.functionApp.webhookUrl value
+          from the deployment summary or artifact — you need it in the next step.
+    note: |
+      The deployment will fail to seed secrets if ADMIN_ORG_PAT or RUNNER_WEBHOOK_SECRET
+      are not set as Actions secrets before the workflow runs.
+
+  - id: 6
+    title: Configure the GitHub organization webhook
+    detail: |
+      The org webhook sends workflow_job events to the autoscaler Function App.
+      Without this the VMSS stays at its minimum capacity (1) permanently — it
+      will not scale up when jobs are queued or back down when they complete.
+    instructions:
+      - Go to: org hexmasternl → Settings → Webhooks → Add webhook
+      - payload_url: <webhookUrl from deployment output>
+        Example: https://func-hexlz-dev-runner-westeurope.azurewebsites.net/api/workflow-job-webhook
+      - content_type: application/json
+      - secret: <same value you stored in RUNNER_WEBHOOK_SECRET>
+      - events: select "Workflow jobs" only (send me individual events)
+      - active: checked
+      - Click Add webhook.
+    verification: |
+      Trigger a test ping from the webhook settings page. The Function App should
+      return HTTP 202 (event_not_supported for the ping event type). If it returns
+      401 check that the webhook secret matches RUNNER_WEBHOOK_SECRET exactly.
+
+  - id: 7
+    title: Verify end-to-end runner pickup
+    detail: |
+      Run the test-self-hosted-runner workflow to confirm a VMSS instance picks up
+      the job and completes all diagnostic steps.
+    instructions:
+      - Go to: repo hexmaster-waf-foundation → Actions → Test self-hosted runner
+          → Run workflow
+      - The job targets [self-hosted, vmss]. The existing warm instance (minRunners=1)
+          should pick it up within seconds of the webhook firing.
+      - Confirm all diagnostic steps complete and the summary shows
+          "The workflow reached the VMSS runner successfully."
+    if_job_stays_queued:
+      - Confirm the runner group grants access to this repository (step 4).
+      - Confirm at least one runner shows as Idle in org → Settings → Actions → Runners.
+      - Run the cloud-init diagnostics command from the troubleshooting section of
+          infra/README.md to check the journal on VMSS instance 0.
+
+rotation_schedule:
+  ADMIN_ORG_PAT: every 90 days — update Actions secret then re-run the deployment
+  RUNNER_WEBHOOK_SECRET: as needed — update Actions secret, re-deploy, update org webhook

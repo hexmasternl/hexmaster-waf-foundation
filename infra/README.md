@@ -14,6 +14,7 @@ This repository now uses a **Bicep-first** layout for the Azure landing zone fou
 - `modules\connectivity\workload-spoke.bicep` - standard workload spoke VNet, subnet isolation, and shared-service flow guardrails
 - `landing-zone\workload-spokes.example.bicepparam` - example workload spoke onboarding parameters that align with the reserved spoke supernet
 - `operations\break-glass-operating-model.yaml` - operator break-glass operating model and validation checks
+- `operations\runner-bootstrap-runbook.yaml` - step-by-step runner bootstrap: PAT creation, webhook secret, runner group access, and org webhook setup
 
 ## Current scope
 
@@ -133,21 +134,23 @@ Runner registrations are **ephemeral** — each VM instance registers for a sing
 
 #### Secret requirements
 
-Create these secrets in the platform Key Vault:
+The deployment workflow seeds both runner secrets into the platform Key Vault automatically when the corresponding GitHub Actions secrets are present:
 
-- `github-actions-pat` — classic PAT with `admin:org` and `repo` scope
-- `github-webhook-secret` — shared secret used to validate the GitHub `workflow_job` webhook payload
+| Key Vault secret | GitHub Actions secret | Purpose |
+|---|---|---|
+| `github-actions-pat` | `ADMIN_ORG_PAT` | PAT used by VM instances to obtain runner registration tokens at boot |
+| `github-webhook-secret` | `RUNNER_WEBHOOK_SECRET` | Shared secret used by the autoscaler Function App to validate incoming `workflow_job` webhook payloads |
 
-The deployment workflow can seed `github-actions-pat` automatically from the repository secret `GITHUB_ADMIN_ORG_PAT`. The webhook secret still needs to be created in Key Vault separately.
+See `infra/operations/runner-bootstrap-runbook.yaml` for step-by-step instructions on creating these secrets.
 
 #### VMSS bootstrap requirements
 
 Before the runner pool can deploy and register successfully:
 
 1. Replace the example `runnerExecutionConfig.adminPublicKey` value in `main.bicepparam` with a real SSH public key for break-glass access.
-2. Create the `github-actions-pat` and `github-webhook-secret` secrets in the platform Key Vault (see above).
-3. Create a runner group named **HexMaster Landingzone** in the GitHub organization under Settings → Actions → Runner groups.
-4. Configure a GitHub organization or repository `workflow_job` webhook that targets the Function App URL returned in the landing-zone outputs.
+2. Create the `ADMIN_ORG_PAT` and `RUNNER_WEBHOOK_SECRET` secrets in the GitHub repository (or `landing-zone-dev` environment). The deployment will seed them into Key Vault automatically.
+3. Create a runner group named **HexMaster Landingzone** in the GitHub organization under Settings → Actions → Runner groups and grant it access to this repository (and enable public repository access if the repo is public).
+4. Configure a GitHub organization `workflow_job` webhook targeting the Function App URL returned in the `runnerExecutionPlatform.autoscaler.functionApp.webhookUrl` deployment output. Use the value of `RUNNER_WEBHOOK_SECRET` as the webhook shared secret.
 
 #### Troubleshooting runner registration
 
@@ -163,9 +166,10 @@ az vmss run-command invoke \
 ```
 
 Common causes:
-- **Key Vault secret missing** — the `github-actions-pat` secret must exist before the first VM boots
-- **PAT scope insufficient** — the PAT needs `admin:org` to create registration tokens at the org level
-- **Runner group missing** — the group referenced in `runnerExecutionConfig.runnerGroup` must exist in the GitHub org
+- **Runner group not visible to the repo** — the most common issue for org runners. Go to Org → Settings → Actions → Runner groups → HexMaster Landingzone and verify the repository is listed under *Repository access*. If the repo is public, also enable *Allow public repositories*.
+- **Key Vault secret missing** — both `github-actions-pat` and `github-webhook-secret` must exist before the first VM boots. Check that the deployment ran with `ADMIN_ORG_PAT` and `RUNNER_WEBHOOK_SECRET` set.
+- **PAT scope insufficient** — the PAT needs `admin:org` (classic) or *Self-hosted runners: read and write* (fine-grained) to create registration tokens at the org level.
+- **Runner group missing** — the group referenced in `runnerExecutionConfig.runnerGroup` must exist in the GitHub org before the VMSS instances boot.
 
 The deployment workflow now also packages and zip-deploys the Function App code under `infra\runner-autoscaler\` after the infrastructure deployment succeeds.
 
