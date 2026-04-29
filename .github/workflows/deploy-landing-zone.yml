@@ -366,8 +366,9 @@ jobs:
             local SCOPE="$1"  # "repos/$GITHUB_REPO" or "orgs/$GITHUB_ORG"
             local SCOPE_LABEL="$2"
 
-            LIST_RESULT=$(gh api "${SCOPE}/hooks" 2>&1)
-            LIST_RC=$?
+            local LIST_RC=0
+            local LIST_RESULT=""
+            LIST_RESULT=$(gh api "${SCOPE}/hooks" 2>&1) || LIST_RC=$?
             if [[ $LIST_RC -ne 0 ]]; then
               echo "::warning::Cannot list ${SCOPE_LABEL} webhooks (HTTP error). Skipping ${SCOPE_LABEL} webhook."
               echo "GitHub API response (truncated): $(echo "$LIST_RESULT" | head -c 500)"
