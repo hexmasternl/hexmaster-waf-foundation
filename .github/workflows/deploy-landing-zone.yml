@@ -337,6 +337,50 @@ jobs:
             --resource-group "${{ steps.runner.outputs.resource_group }}" \
             --name "${{ steps.runner.outputs.function_app_name }}"
 
+      - name: Register GitHub org webhook
+        if: steps.runner.outputs.webhook_url != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_ORG_PAT }}
+          WEBHOOK_URL: ${{ steps.runner.outputs.webhook_url }}
+          WEBHOOK_SECRET: ${{ secrets.RUNNER_WEBHOOK_SECRET }}
+          GITHUB_ORG: hexmasternl
+        run: |
+          set -euo pipefail
+
+          # List existing org webhooks and find one pointing at the same function app host.
+          # We match on the hostname part so that minor URL path changes don't create duplicates.
+          WEBHOOK_HOST=$(python3 -c "import urllib.parse, os; print(urllib.parse.urlparse(os.environ['WEBHOOK_URL']).netloc)")
+          echo "Looking for existing webhook with host: $WEBHOOK_HOST"
+
+          EXISTING_ID=$(gh api "orgs/$GITHUB_ORG/hooks" \
+            --jq ".[] | select(.config.url | test(\"$WEBHOOK_HOST\")) | .id" 2>/dev/null || true)
+
+          if [[ -n "$EXISTING_ID" ]]; then
+            echo "Updating existing org webhook id=$EXISTING_ID → $WEBHOOK_URL"
+            gh api --method PATCH "orgs/$GITHUB_ORG/hooks/$EXISTING_ID" \
+              -f "config[url]=$WEBHOOK_URL" \
+              -f "config[content_type]=json" \
+              -f "config[secret]=$WEBHOOK_SECRET" \
+              -f "config[insecure_ssl]=0" \
+              -F "active=true" \
+              -f "events[]=workflow_job" \
+              --silent
+            echo "Webhook updated."
+          else
+            echo "No existing webhook found — creating new org webhook → $WEBHOOK_URL"
+            gh api --method POST "orgs/$GITHUB_ORG/hooks" \
+              -f "name=web" \
+              -f "config[url]=$WEBHOOK_URL" \
+              -f "config[content_type]=json" \
+              -f "config[secret]=$WEBHOOK_SECRET" \
+              -f "config[insecure_ssl]=0" \
+              -F "active=true" \
+              -f "events[]=workflow_job" \
+              --silent
+            echo "Webhook created."
+          fi
+
       - name: Write deployment summary
         shell: bash
         run: |
