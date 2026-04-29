@@ -300,9 +300,9 @@ jobs:
             zip -rq ../../runner-autoscaler.zip .
           )
 
-          # Log zip contents for diagnostics.
+          # Log zip contents for diagnostics (|| true prevents broken-pipe from head).
           echo "=== Zip contents (azure packages) ==="
-          unzip -l runner-autoscaler.zip | grep "azure/" | head -20
+          unzip -l runner-autoscaler.zip | grep "azure/" | head -20 || true
           echo "=== Total zip size ==="
           ls -lh runner-autoscaler.zip
 
