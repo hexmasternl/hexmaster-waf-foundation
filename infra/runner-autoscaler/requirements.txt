@@ -1,1 +1,7 @@
 azure-identity==1.19.0
+# Pin cryptography to the last release with manylinux2014 (glibc >= 2.17) wheels.
+# Versions >= 42 only ship manylinux_2_28+ and manylinux_2_34+ wheels. When pip
+# runs on ubuntu-latest (glibc 2.35) without a --platform override it picks the
+# latest wheel, which requires GLIBC_2.33+ at runtime. The Azure Functions Linux
+# Consumption container has glibc 2.28 and fails with ImportError at startup.
+cryptography==41.0.7

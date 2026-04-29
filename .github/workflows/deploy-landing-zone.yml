@@ -281,23 +281,17 @@ jobs:
           # Azure Functions Python worker — bundling it creates an 'azure' namespace
           # conflict that prevents azure.identity (and azure.functions) from loading.
           #
-          # --platform manylinux_2_28_x86_64: the Azure Functions Linux Consumption
-          #   container is Debian Buster-based (glibc 2.28). Without this flag, pip
-          #   picks the wheel built for the GitHub-hosted runner's glibc (2.35+).
-          #   The cryptography package's native .so then requires GLIBC_2.33+ and
-          #   fails to load in the container with ImportError at function startup.
-          # --only-binary :all: forces pre-built wheels (no source compilation).
+          # cryptography is pinned in requirements.txt to 41.0.7, the last release
+          # that ships manylinux2014_x86_64 wheels (glibc >= 2.17). Without the pin,
+          # pip resolves the wheel built for the runner's glibc (2.35+), which then
+          # fails to load in the Azure Functions container (glibc 2.28) with:
+          #   ImportError: GLIBC_2.33 not found (cryptography/_rust.abi3.so)
           pip install \
             -r infra/runner-autoscaler/requirements.txt \
             --target infra/runner-autoscaler/.python_packages/lib/site-packages \
-            --platform manylinux_2_28_x86_64 \
-            --python-version 3.11 \
-            --implementation cp \
-            --only-binary :all: \
             --quiet
 
-          # Spot-check: list native .so files so the platform tag is visible in the
-          # workflow log. Filenames should contain "manylinux_2_28" not "manylinux_2_3x".
+          # Confirm the wheel selected for cryptography is manylinux2014 (not 2_34+).
           echo "=== Native extensions in bundle ==="
           find infra/runner-autoscaler/.python_packages -name "*.so" | sort || true
 
